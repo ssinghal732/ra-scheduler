@@ -1,0 +1,16 @@
+# Data. Real grids, availability exports, and filled schedules carry real RA
+# names and never enter this repo, public or private.
+*.xlsx
+*.xls
+*.csv
+*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# macOS
+.DS_Store
