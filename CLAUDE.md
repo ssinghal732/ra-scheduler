@@ -82,7 +82,9 @@ All measured 2026-08-24 against the real grid (`26-27_RA_Duty_Schedule.xlsx`) an
 
 **Availability replay** (last year's `RA Duty Availability (FALL)`, 42 responses): 44 weekday Class-Conflict marks across 31 people, 168 blackout dates across 38. After joining, 406 of 480 assignments were checkable. The plan contained 5 people scheduled on a weekday they marked unavailable and 3 on a date they listed as an exception, four of those inside finals week, the most-swapped week of the quarter. Same caveat applies.
 
-**Weekday concentration, measured 2026-08-26.** Last year by hand: median RA did 62% of their weekday evenings on their most-used day, 23 of 42 at 60%+, only 5 of 44 on a single weekday. Our solver: median 50%, which is what scattering across free days produces. That 62-vs-50 gap is the whole of the missing preference feature.
+**Weekday concentration, measured 2026-08-26.** Last year by hand: median RA did 62% of their weekday evenings on their most-used day, 23 of 42 at 60%+, only 5 of 44 on a single weekday. Our solver: median 50%, which is what scattering across free days produces.
+
+**62% is a benchmark, not a target** (Shivam pushed on this, correctly). The grid holds 48 weekday-evening seats on each of the five days, 240 total, 5.6 per RA across 43 RAs. Spread 43 people evenly over 5 days and each day's 48 seats hold exactly 5.6 shifts per person, so 100% concentration is mathematically possible with evenly-spread rankings. What actually caps it is how lopsided the real rankings are, plus availability and the differing tier loads. Tune the weight up against real data and measure where fairness starts to give; do not code a target number.
 
 **Feasibility margin worth knowing:** the returners-only week is 32 seats over 17 experienced RAs, about 1.9 shifts each. Comfortable with generous availability; the first thing to re-check on real data.
 
