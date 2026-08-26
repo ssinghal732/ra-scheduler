@@ -47,6 +47,7 @@ Each was decided by Shivam with a reason, 2026-08-24 unless noted. Reopening the
 | Minimax objective (F2) | RAs compare counts with each other. Protecting the worst-off person is what "fair" feels like; a few people slightly off beats one person slammed. |
 | LRA target 5, 6 only if forced (F3) | Half of the new-RA baseline is 5.5; Shivam chose the low side, implemented as a heavier deviation weight. |
 | Pairing period is training, so every new RA gets >= 2 pairing shifts (Q1) | Quarter-total fairness alone left 3 new RAs with zero pairing shifts, perfect counts, and no training. Soft floor, weight above the fairness terms, flags anyone it cannot seat. |
+| The pairing period trains the DESK SHIFT as well as the walk (2026-08-26) | Shivam, when he asked whether desk pairs were being checked and they were not. All four pairings on a 4-person pairing shift must be 1 experienced + 1 new: both walk pairs (across desks) and both desk pairs (across walks). Before this, 20 of 56 desk pairs were same-tier and 10 of 28 shifts had two new RAs staffing a desk together all evening. As a grid, every row and column needs one of each; 8 of 24 orderings qualify and one always exists, so slotting still cannot fail. Cost was 1 point of desk preference. |
 | Primary / Secondary = first walk (7:30) / second walk (9:30), not seniority | Corrected by Shivam after Claude invented a leadership reading. The walk is done by the pair together; during the pairing period every walk pair is 1 experienced + 1 new. On 2-person shifts the label order is randomized because it carries no meaning. |
 | Solver picks people; roles are a post-step | FRA/GRA is a soft preference, not eligibility. 2 experienced + 2 new selected guarantees a legal pair arrangement always exists, so slotting never fails. |
 | Parser keys on ucsd email, never on names (2026-08-24) | Replaying last year, only 4 of 45 names matched exactly between the form and the schedule sheet. Email is the one stable key both sides carry. |
@@ -89,7 +90,7 @@ All measured 2026-08-24 against the real grid (`26-27_RA_Duty_Schedule.xlsx`) an
 
 **Preferences, measured 2026-08-26 on the real grid with synthetic preferences.** 237 of 240 weekday shifts landed on a 1st or 2nd choice day (99%); 41 of 43 RAs got 100% of theirs. Every weekend shift matched both the day and time asked for (188/188). Desks 212/275 (77%), lower because a pairing shift puts one person at each desk and both may want the same one. Fairness unchanged: max deviation 1, LRA all 5. Total preference cost 3.
 
-**Desk seating, examined 2026-08-26.** 79% overall, and the remaining misses are mostly not fixable in `roles.py`: 34 of 57 land on weekend Morning/Afternoon shifts that have no game room at all, so the person was already assigned there before slotting saw them. Pairing shifts run 90%, normal 4-person shifts 89%. The greedy split was measured and is already optimal; the win came from choosing WHICH experienced RA pairs with WHICH new RA, which was previously left to a shuffled index and is worth 8 seats.
+**Desk seating, examined 2026-08-26.** 78% overall (79% before desk-pair training was enforced), and the remaining misses are mostly not fixable in `roles.py`: 34 of 57 land on weekend Morning/Afternoon shifts that have no game room at all, so the person was already assigned there before slotting saw them. Pairing shifts run 90%, normal 4-person shifts 89%. The greedy split was measured and is already optimal; the win came from choosing WHICH experienced RA pairs with WHICH new RA, which was previously left to a shuffled index and is worth 8 seats.
 
 **Shivam's read was right:** there is enough capacity that fairness and preferences barely conflict. Whether that holds on real rankings depends on how lopsided they are, which the synthetic distribution cannot tell us.
 
@@ -158,7 +159,7 @@ Install only what the code in front of you imports.
 | `ra_scheduler/synthetic.py` | Synthetic availability, in the exact `AvailabilityData` shape the real form parser must produce. The parser replaces this one module and nothing downstream changes. |
 | `ra_scheduler/preflight.py` | Pre-solve arithmetic. Turns a bare `INFEASIBLE` into a dated list of what is short, and catches the parser faults that look like scheduling conflicts. Necessary conditions only; the solver stays the authority. |
 | `ra_scheduler/solver.py` | CP-SAT selection: who works each shift. All hard rules and the soft objective. |
-| `ra_scheduler/roles.py` | Slots the chosen people into named columns. Walk-pair rules and desk preference live here. |
+| `ra_scheduler/roles.py` | Slots the chosen people into named columns. Training-pair rules (walks AND desks) and desk preference live here. |
 | `ra_scheduler/validate.py` | Independent re-check of every hard rule and role invariant. Shares no logic with solver or roles, on purpose. |
 | `ra_scheduler/export.py` | Writes the filled xlsx in the duty leads' exact column shape. |
 | `run_pipeline.py` | End to end: grid, availability, solve, roles, validate, export. |
