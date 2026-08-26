@@ -37,6 +37,13 @@ class RoleError(ValueError):
     """Raised when the selected people cannot legally fill the roles."""
 
 
+def _pair_score(a: str, b: str, want: dict[str, str]) -> int:
+    """How many of two people can get the desk they asked for, best orientation."""
+    wa, wb = want.get(a, ""), want.get(b, "")
+    return max((wa == FRONT_DESK) + (wb == GAME_ROOM),
+               (wa == GAME_ROOM) + (wb == FRONT_DESK))
+
+
 def _seat_pair(pair: list[str], want: dict[str, str], rng: random.Random) -> list[str]:
     """Order a two-person pair as [front desk, game room], honouring desks asked for.
 
@@ -94,9 +101,19 @@ def assign_roles(
         rng.shuffle(new)
         if shift.seats == 4:
             # Primary pair = exp+new, Secondary pair = exp+new. Each pair puts one
-            # person at each desk, so the only choice is which way round.
-            primary = _seat_pair([experienced[0], new[0]], want, rng)
-            secondary = _seat_pair([experienced[1], new[1]], want, rng)
+            # person at each desk. WHICH experienced RA pairs with WHICH new RA is
+            # a free choice and it changes how many people get the desk they asked
+            # for, sometimes doubling it, so try both pairings rather than pairing
+            # by index. Shuffled first so ties break randomly, not always the same
+            # way: the pairing itself carries no meaning.
+            options = [
+                [(experienced[0], new[0]), (experienced[1], new[1])],
+                [(experienced[0], new[1]), (experienced[1], new[0])],
+            ]
+            rng.shuffle(options)
+            best = max(options, key=lambda ps: sum(_pair_score(a, b, want) for a, b in ps))
+            primary = _seat_pair(list(best[0]), want, rng)
+            secondary = _seat_pair(list(best[1]), want, rng)
             return {FD_P: primary[0], GR_P: primary[1], FD_S: secondary[0], GR_S: secondary[1]}
         # 2-person: the pair itself is exp+new; labels are just walk order.
         duo = [experienced[0], new[0]]

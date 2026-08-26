@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ra_scheduler.models import (
     FRONT_DESK, GAME_ROOM, MAX_RANK_COST, MAX_WEEKEND_COST, RANK_COST,
+    WRONG_WEEKEND_DAY, WRONG_WEEKEND_TIME,
     RA, AvailabilityData, Preferences, ShiftInstance,
 )
 from ra_scheduler.roles import FD_P, FD_S, GR_P, GR_S, assign_roles
@@ -76,8 +77,26 @@ def test_weekday_cost_follows_the_rank():
 def test_weekend_cost_adds_wrong_day_and_wrong_time():
     d = _data(Preferences(weekend_days={"Saturday"}, weekend_times={"Morning"}))
     assert _preference_cost(_shift("Morning", dow="Saturday"), d, "A") == 0
-    assert _preference_cost(_shift("Morning", dow="Sunday"), d, "A") == 1
-    assert _preference_cost(_shift("Evening (Weekend)", dow="Sunday"), d, "A") == 2
+    assert _preference_cost(_shift("Evening (Weekend)", dow="Saturday"), d, "A") == WRONG_WEEKEND_TIME
+    assert _preference_cost(_shift("Morning", dow="Sunday"), d, "A") == WRONG_WEEKEND_DAY
+    assert (_preference_cost(_shift("Evening (Weekend)", dow="Sunday"), d, "A")
+            == WRONG_WEEKEND_DAY + WRONG_WEEKEND_TIME)
+
+
+def test_priority_order_matches_the_ranking_shivam_gave():
+    """1. weekday  2. weekend day  3. weekend time  4. desk location.
+
+    Encoded so the worst miss in each category outranks the worst in the next.
+    Desk is absent on purpose: roles.py settles it after the schedule exists, so
+    it can never pull someone off the day or time they asked for.
+    """
+    assert MAX_RANK_COST > WRONG_WEEKEND_DAY > WRONG_WEEKEND_TIME > 0
+
+    # right day / wrong time must beat wrong day / right time
+    d = _data(Preferences(weekend_days={"Saturday"}, weekend_times={"Morning"}))
+    right_day = _preference_cost(_shift("Evening (Weekend)", dow="Saturday"), d, "A")
+    right_time = _preference_cost(_shift("Morning", dow="Sunday"), d, "A")
+    assert right_day < right_time
 
 
 def test_weekday_prefs_do_not_leak_into_weekend_shifts():

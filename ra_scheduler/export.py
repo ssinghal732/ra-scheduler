@@ -6,6 +6,7 @@ Values only (no formulas), Arial throughout.
 """
 from __future__ import annotations
 
+from collections import Counter
 from datetime import date
 from pathlib import Path
 
@@ -55,7 +56,8 @@ def _exceptions_by_date(data: AvailabilityData) -> dict[date, str]:
 AVAIL_HEADERS = (
     "RA", "Tier", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
     "Dates they cannot work", "Weekend pref", "Desk pref",
-    "Shifts they could work", "Shifts assigned", "Weekday shifts on 1st/2nd choice",
+    "Shifts they could work", "Shifts assigned",
+    "Weekday evenings they got", "On a 1st/2nd choice day",
 )
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
 _UNAVAILABLE = "Class Conflict/Unavailable"
@@ -77,6 +79,7 @@ def _availability_rows(shifts, data: AvailabilityData, roles) -> list[tuple]:
 
     # weekday evenings each RA got, and how many landed on a 1st/2nd choice day
     kept: dict[str, list[int]] = {}
+    worked: dict[str, Counter] = {}
     by_sid = {s.sid: s for s in shifts}
     for sid, table in roles.items():
         s = by_sid.get(sid)
@@ -86,6 +89,7 @@ def _availability_rows(shifts, data: AvailabilityData, roles) -> list[tuple]:
             rank = data.prefs(rid).weekday_rank.get(s.dow)
             got, tot = kept.setdefault(rid, [0, 0])
             kept[rid] = [got + (1 if rank and rank <= 2 else 0), tot + 1]
+            worked.setdefault(rid, Counter())[s.dow] += 1
 
     out = []
     for ra in data.roster:
@@ -108,6 +112,10 @@ def _availability_rows(shifts, data: AvailabilityData, roles) -> list[tuple]:
             ", ".join(sorted(prefs.weekend_days)) or "any day",
             ", ".join(sorted(prefs.weekend_times)) or "any time") if x)
         got, tot = kept.get(ra.ra_id, [0, 0])
+        days = worked.get(ra.ra_id, Counter())
+        # "Mon x4, Wed x1", most-worked day first: their duty day at a glance
+        day_text = ", ".join(f"{d[:3]} x{n}" for d, n in
+                             sorted(days.items(), key=lambda kv: (-kv[1], kv[0])))
         out.append((
             ra.name,
             ra.tier,   # LRA / returner / new: this is what sets their target
@@ -117,6 +125,7 @@ def _availability_rows(shifts, data: AvailabilityData, roles) -> list[tuple]:
             prefs.location or "either",
             len(free),
             assigned.get(ra.ra_id, 0),
+            day_text or "none",
             f"{got}/{tot}" if tot else "-",
         ))
     return out
@@ -193,13 +202,13 @@ def write_schedule(
         aw.append(row)
         for c in aw[aw.max_row]:
             c.font = body_font
-        for j in (11, 12, 13):
+        for j in (11, 12, 14):
             aw.cell(aw.max_row, j).alignment = Alignment(horizontal="center")
         for j in range(3, 8):
             if aw.cell(aw.max_row, j).value == _UNAVAILABLE:
                 aw.cell(aw.max_row, j).fill = holiday_fill
     for col_cells, width in zip(aw.columns,
-                                (12, 11, 22, 22, 22, 22, 22, 32, 26, 12, 20, 16, 26)):
+                                (12, 11, 22, 22, 22, 22, 22, 32, 26, 12, 20, 16, 30, 22)):
         aw.column_dimensions[col_cells[0].column_letter].width = width
     aw.freeze_panes = "C2"
 

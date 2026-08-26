@@ -104,12 +104,22 @@ class ShiftInstance:
 # --------------------------------------------------------------------------- #
 FRONT_DESK, GAME_ROOM = "Front Desk", "Game Room"
 
+# Priority order, Shivam's 2026-08-26 ranking of what he would want as an RA:
+#   1. weekday          2. weekend day     3. weekend time     4. desk location
+#
+# Encoded as costs, so the worst miss in each category outranks the worst miss
+# in the next: weekday tops out at 3, a wrong weekend day costs 2, a wrong
+# weekend time costs 1. Desk location is not priced here at all; it is settled
+# in roles.py AFTER the schedule exists, which is what keeps it last and stops
+# it from ever pulling somebody off the day or time they asked for.
+#
 # The form promises "your first or second most preferred weekday", so ranks 1
 # and 2 both count as kept. Past that the cost climbs by one per step: enough
 # to steer, gentle enough that a 5th choice is not treated as a catastrophe.
 RANK_COST = {1: 0, 2: 0, 3: 1, 4: 2, 5: 3}
 MAX_RANK_COST = max(RANK_COST.values())
-MAX_WEEKEND_COST = 2                       # wrong day (1) + wrong time (1)
+WRONG_WEEKEND_DAY, WRONG_WEEKEND_TIME = 2, 1
+MAX_WEEKEND_COST = WRONG_WEEKEND_DAY + WRONG_WEEKEND_TIME
 
 
 @dataclass
@@ -125,8 +135,8 @@ class Preferences:
         return RANK_COST.get(rank, 0) if rank else 0
 
     def weekend_cost(self, dow: str, time_label: str) -> int:
-        day = 0 if not self.weekend_days or dow in self.weekend_days else 1
-        time = 0 if not self.weekend_times or time_label in self.weekend_times else 1
+        day = 0 if not self.weekend_days or dow in self.weekend_days else WRONG_WEEKEND_DAY
+        time = 0 if not self.weekend_times or time_label in self.weekend_times else WRONG_WEEKEND_TIME
         return day + time
 
 
