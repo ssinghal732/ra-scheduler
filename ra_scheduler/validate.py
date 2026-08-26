@@ -63,10 +63,15 @@ def validate(
                 errors.append(f"{s.key}: role table people != assigned people")
             if s.block == BLOCK_PAIRING:
                 if s.seats == 4:
-                    pairs = ((table[FD_P], table[GR_P]), (table[FD_S], table[GR_S]))
+                    # both the walks AND the desks are training pairs
+                    pairs = (("7:30 walk", (table[FD_P], table[GR_P])),
+                             ("9:30 walk", (table[FD_S], table[GR_S])),
+                             ("front desk", (table[FD_P], table[FD_S])),
+                             ("game room", (table[GR_P], table[GR_S])))
                 else:
-                    pairs = ((table[FD_P], table[FD_S]),)
-                for pair in pairs:
+                    pairs = (("the pair", (table[FD_P], table[FD_S])),)
+                for label, pair in pairs:
                     if sum(1 for p in pair if is_new(p)) != 1:
-                        errors.append(f"{s.key}: pairing pair not 1 experienced + 1 new")
+                        errors.append(
+                            f"{s.key}: {label} is not 1 experienced + 1 new")
     return errors

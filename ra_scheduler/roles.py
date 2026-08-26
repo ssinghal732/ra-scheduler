@@ -4,14 +4,23 @@ Roles per shift:
   4-person: Front Desk Primary/Secondary + Game Room Primary/Secondary
   2-person: Front Desk Primary/Secondary
 
-Rules (confirmed with Shivam 2026-08-24):
+Rules (confirmed with Shivam 2026-08-24, extended 2026-08-26):
   - Primary / Secondary = FIRST walk (7:30 PM) / SECOND walk (9:30 PM).
     They are time slots, not seniority; the walk is done by the pair together.
-  - Pairing period: every walk pair must be 1 experienced + 1 new, so a trainee
-    always walks with an experienced RA. 4-person shifts: Primary pair
-    (FD-P + GR-P) and Secondary pair (FD-S + GR-S) each mixed. 2-person shifts:
-    the two FRAs are the experienced+new pair; which one gets which label is
-    arbitrary and randomized.
+  - Pairing period: BOTH the walk and the desk shift are training, so both
+    pairings must be 1 experienced + 1 new. Laid out as a grid, rows are walks
+    and columns are desks, and every row and every column needs one of each:
+
+                     FRONT DESK     GAME ROOM
+        7:30 walk        E      +       N        <- walk pair mixed
+        9:30 walk        N      +       E        <- walk pair mixed
+                         ^              ^
+                       mixed          mixed
+
+    8 of the 24 orderings satisfy that, and one always exists for 2 experienced
+    plus 2 new, so this can never fail. 2-person shifts: the two FRAs are the
+    experienced+new pair and they are both the walk pair and the desk pair, so
+    it holds automatically; the label order is arbitrary and randomized.
   - Outside the pairing period: fully randomized (seeded, so runs are reproducible).
 
 Desk placement (Front Desk vs Game Room) is the one preference handled HERE
@@ -24,6 +33,7 @@ feasibility. Ties and impossible cases fall back to random.
 from __future__ import annotations
 
 import random
+from itertools import permutations
 
 from .models import BLOCK_PAIRING, FRONT_DESK, GAME_ROOM, RA, AvailabilityData, ShiftInstance
 
@@ -35,6 +45,19 @@ ROLES_2 = (FD_P, FD_S)
 
 class RoleError(ValueError):
     """Raised when the selected people cannot legally fill the roles."""
+
+
+def _trains_everyone(table: dict[str, str], tier_of: dict[str, str]) -> bool:
+    """True when both walk pairs AND both desk pairs are 1 experienced + 1 new."""
+    pairs = ((FD_P, GR_P), (FD_S, GR_S),    # the two walks
+             (FD_P, FD_S), (GR_P, GR_S))    # the two desks
+    return all(sum(1 for r in pair if tier_of[table[r]] == "new") == 1 for pair in pairs)
+
+
+def _desk_score(table: dict[str, str], want: dict[str, str]) -> int:
+    """How many people are standing at the desk they asked for."""
+    return sum(1 for role, rid in table.items()
+               if want.get(rid) and (want[rid] == FRONT_DESK) == role.startswith("Front"))
 
 
 def _pair_score(a: str, b: str, want: dict[str, str]) -> int:
@@ -100,21 +123,17 @@ def assign_roles(
         rng.shuffle(experienced)
         rng.shuffle(new)
         if shift.seats == 4:
-            # Primary pair = exp+new, Secondary pair = exp+new. Each pair puts one
-            # person at each desk. WHICH experienced RA pairs with WHICH new RA is
-            # a free choice and it changes how many people get the desk they asked
-            # for, sometimes doubling it, so try both pairings rather than pairing
-            # by index. Shuffled first so ties break randomly, not always the same
-            # way: the pairing itself carries no meaning.
-            options = [
-                [(experienced[0], new[0]), (experienced[1], new[1])],
-                [(experienced[0], new[1]), (experienced[1], new[0])],
-            ]
-            rng.shuffle(options)
-            best = max(options, key=lambda ps: sum(_pair_score(a, b, want) for a, b in ps))
-            primary = _seat_pair(list(best[0]), want, rng)
-            secondary = _seat_pair(list(best[1]), want, rng)
-            return {FD_P: primary[0], GR_P: primary[1], FD_S: secondary[0], GR_S: secondary[1]}
+            # Every arrangement that trains everyone, then the one seating the
+            # most people at the desk they asked for. Shuffled first so ties
+            # break randomly: none of these labels carries meaning.
+            valid = []
+            for order in permutations(experienced + new):
+                table = dict(zip(ROLES_4, order))
+                if _trains_everyone(table, tier_of):
+                    valid.append(table)
+            rng.shuffle(valid)
+            return max(valid, key=lambda tb: _desk_score(tb, want))
+
         # 2-person: the pair itself is exp+new; labels are just walk order.
         duo = [experienced[0], new[0]]
         rng.shuffle(duo)

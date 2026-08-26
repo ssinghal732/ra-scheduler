@@ -120,14 +120,41 @@ def test_desk_preference_is_honoured_when_it_can_be():
         assert {t[GR_P], t[GR_S]} == {"N1", "N2"}, f"seed {seed}: {t}"
 
 
-def test_desk_preference_never_breaks_the_pairing_rule():
-    """Pairing composition outranks desk preference; both pairs stay mixed."""
-    want = {p: FRONT_DESK for p in TIERS}          # everyone wants the same desk
+def test_pairing_trains_on_the_walk_AND_the_desk():
+    """Shivam 2026-08-26: both the walk and the desk shift are training.
+
+    So all four pairings must be 1 experienced + 1 new: the two walk pairs
+    (across desks) and the two desk pairs (across walks).
+    """
+    s = _shift("Evening (Weekend)", d=PAIRING_DAY)
+    for seed in range(100):
+        t = assign_roles(s, ["E1", "E2", "N1", "N2"], TIERS, random.Random(seed), {})
+        checks = {"7:30 walk": (t[FD_P], t[GR_P]), "9:30 walk": (t[FD_S], t[GR_S]),
+                  "front desk": (t[FD_P], t[FD_S]), "game room": (t[GR_P], t[GR_S])}
+        for label, pair in checks.items():
+            assert sum(1 for p in pair if TIERS[p] == "new") == 1, \
+                f"seed {seed}: {label} not mixed in {t}"
+
+
+def test_desk_preference_never_breaks_the_training_rule():
+    """Everyone wanting the same desk must not bend the composition."""
+    want = {p: FRONT_DESK for p in TIERS}
     s = _shift("Evening (Weekend)", d=PAIRING_DAY)
     for seed in range(50):
         t = assign_roles(s, ["E1", "E2", "N1", "N2"], TIERS, random.Random(seed), want)
-        for pair in ((t[FD_P], t[GR_P]), (t[FD_S], t[GR_S])):
+        for pair in ((t[FD_P], t[GR_P]), (t[FD_S], t[GR_S]),
+                     (t[FD_P], t[FD_S]), (t[GR_P], t[GR_S])):
             assert sum(1 for p in pair if TIERS[p] == "new") == 1, f"seed {seed}: {t}"
+
+
+def test_all_eight_valid_arrangements_are_reachable():
+    """Nothing is quietly pinned: the tie-break really does shuffle."""
+    s = _shift("Evening (Weekend)", d=PAIRING_DAY)
+    seen = {tuple(assign_roles(s, ["E1", "E2", "N1", "N2"], TIERS,
+                               random.Random(seed), {})[r]
+                  for r in (FD_P, FD_S, GR_P, GR_S))
+            for seed in range(300)}
+    assert len(seen) == 8, f"expected all 8 valid arrangements, saw {len(seen)}"
 
 
 def test_everyone_is_still_seated_when_desks_are_contested():
