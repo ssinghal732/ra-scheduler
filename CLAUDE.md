@@ -86,6 +86,39 @@ All measured 2026-08-24 against the real grid (`26-27_RA_Duty_Schedule.xlsx`) an
 
 **62% is a benchmark, not a target** (Shivam pushed on this, correctly). The grid holds 48 weekday-evening seats on each of the five days, 240 total, 5.6 per RA across 43 RAs. Spread 43 people evenly over 5 days and each day's 48 seats hold exactly 5.6 shifts per person, so 100% concentration is mathematically possible with evenly-spread rankings. What actually caps it is how lopsided the real rankings are, plus availability and the differing tier loads. Tune the weight up against real data and measure where fairness starts to give; do not code a target number.
 
+---
+
+## The form as shipped (read 2026-08-26 from `DutyAvailForm_FA26.pdf`)
+
+**Deadline: Thursday 08/27, 11:59 pm.** Building the parser Thursday daytime means working against a partial response set. The complete set exists Friday morning.
+
+**Fixes that landed:** the weekday ranking is now 1-5 across five rows Monday-Friday (this was the data-corrupting defect; it is fixed). Weekday and weekend definitions are consistent on every page, and Friday is nowhere called a weekend. Shivam fixed the page-3 header contradiction himself on 08-26.
+
+**Fixes that did not land, and do not matter:** the weekend checkbox still mixes day and time in one multi-select. It needs no fix, because every option is self-identifying: `[Saturdays]` / `[Sundays]` / `[Open]` are days, `[Morning]` / `[Afternoon]` / `[Evening]` are times. The parser splits them.
+
+**Date instructions got much stricter, aimed squarely at last year's failures:**
+`**FORMAT: MM/DD (Reason)**`, no year, no month names, ranges written out one date per line. `NOT: 10/10/26`. `DO NOT say: Mar 12 OR March 12`.
+
+**What the parser must handle, per question:**
+
+| Form question | Signal | Parser note |
+|---|---|---|
+| Email (auto-recorded) | the join key | The only stable key. Never join on names. |
+| RA Name | display only | Free text, inconsistent. Do not key on it. |
+| "What time do your weekdays end?" | ignored in v1 | Standing decision. Messiest free text on the form. |
+| Weekday ranking 1-5 + Class Conflict | **hard** (Conflict) and **soft** (the rank) | The rank is what task #4 needs. **Capture it even though the solver ignores it today**, or Thursday's work gets redone. |
+| "Weekday DATES you CANNOT do" (page 4) | hard | Weekday-only subset. |
+| "ALL DATES you CANNOT do" (page 6) | hard | Superset, weekdays AND weekends. **Union both columns**; both are required and people will half-fill one. |
+| Weekend day/time checkbox | soft | One multi-select, split by bracketed label. |
+| Shift location (FD / GR / either) | soft | Single choice, three options. |
+| Two "additional concerns" free-text boxes | manual | Weekend hard can't-dos hide here. Hand-encoded in v1. |
+
+**Dates are NEWLINE-separated, not comma-separated.** Page 6 tells people to press enter between dates. Every earlier plan assumed commas. Split on both.
+
+**The form makes a promise the solver currently cannot keep.** Twice it tells RAs: "Seventh College RAs will be assigned a week day per their availability each quarter," and "We will do our best to ensure you have your first or second most preferred weekday." The solver reads the ranking only for its Class Conflict marker and throws the ranks away. See AiCC task #4.
+
+---
+
 **Feasibility margin worth knowing:** the returners-only week is 32 seats over 17 experienced RAs, about 1.9 shifts each. Comfortable with generous availability; the first thing to re-check on real data.
 
 ---
@@ -131,7 +164,7 @@ Install only what the code in front of you imports.
 - **Code yes, docs yes, data never.** Changed 2026-08-26 by Shivam, overriding the global rule that operator docs stay out of a repo. CLAUDE.md, NOW.md, and CHANGELOG.md are now tracked and pushed, so this repo carries its own context and a fresh session finds everything in one place. The condition attached: **no real names in any of them.** People are referred to by role, because `git push` is permanent and stripping a name later means rewriting history, not editing a file.
 - **Data still never enters the repo.** The real grid, the availability export, and any filled schedule carry real RA names. `.gitignore` blocks `*.xlsx` / `*.csv` / `*.json` so that cannot happen by accident.
 - **People:** the ADRL supervising this project is also a duty lead; two RA duty leads run the schedule day to day. The ADRL receives the finished schedule; whether they operate the tool themselves is an open question that decides the v2 UI. Names are deliberately kept out of this repo.
-- **The form-fix thread is separate but coupled.** A fix list went to the duty leads before the 08/28 form deadline (rank 1-5 not 1-4, weekday and weekend definitions made consistent, weekend day/time checkbox split). The parser's job on 08-27 depends partly on which fixes landed.
+- **The form-fix thread is closed.** Read the shipped form 2026-08-26 (`~/Downloads/DutyAvailForm_FA26.pdf`, 7 pages). See "The form as shipped" below for what landed and what the parser faces. **The real deadline is Thursday 08/27 at 11:59 pm**, not 08/28: responses are still arriving through Thursday evening, so a complete set does not exist until Friday morning.
 - **Time category:** `RA_Scheduler`, short code `RAS`, in `technical-projects`. Created 2026-08-26. Log with `time_log(category='RAS', ...)`. Ask Shivam for the hours; never guess them.
 
 ---

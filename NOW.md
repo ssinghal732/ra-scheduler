@@ -4,7 +4,7 @@
 
 RA Scheduler: fills the Seventh College quarterly duty schedule (448 seats, 138 shifts, 43 RAs) from the duty leads' grid plus the availability form, honoring the returners-only week, four weeks of experienced+new walk pairs, and per-tier loads. Spec at `../ra-scheduler-v1-spec.md`. Project brief in [CLAUDE.md](CLAUDE.md).
 
-Built end to end and proven on synthetic availability in one day, 2026-08-24. Real availability data arrives 2026-08-27.
+Built end to end and proven on synthetic availability in one day, 2026-08-24. Form closes 2026-08-27 at 11:59 pm, so a complete response set exists 2026-08-28.
 
 ## Active
 
@@ -26,7 +26,7 @@ Built end to end and proven on synthetic availability in one day, 2026-08-24. Re
    - **Non-submitters stop the run and get listed.** No silent default either way.
    - **No NLP.** Plain string matching and a regex.
 
-   Still open on arrival: whether the form fixes landed, which decides how the ranking matrix parses (1-5 clean, or the 1-4 rows-vs-days mess), and the weekend hard can't-dos that live in the free-text concerns box and get encoded by hand in v1.
+   Settled 2026-08-26 by reading the shipped form (see CLAUDE.md, "The form as shipped"): ranking is a clean 1-5, dates are NEWLINE-separated not comma-separated, and there are TWO date columns (weekday-only and all-dates) that must be unioned. **Capture the 1-5 ranks even though the solver ignores them**, or task #4 means parsing twice. Still hand-encoded in v1: weekend hard can't-dos hiding in the two free-text concerns boxes.
 2. **The `--availability` wiring, same session.** Line 39 of `run_pipeline.py` hardcodes `make_availability(shifts)`, so a run against the real grid today produces a correct-looking schedule staffed by R00-R42 and nothing in the output says so except one `(synthetic)` label. Shivam is building parser and wiring together on 08-27. Open design question raised and not yet decided: whether the pipeline should refuse to write a file at all when availability is synthetic, or force SYNTHETIC into the filename.
 3. **First real run.** Fix real conflicts as they surface. First check: can 17 experienced RAs actually cover the 32 returners-only seats given their real availability. Second check: every RA in the form matches a roster row keyed by ucsd email, and non-submitters are chased, not silently dropped.
 4. **Show the schedule, not the test results.** Before anyone trusts it, the supervising ADRL and the duty leads eyeball a real filled schedule. The validator saying zero violations is Claude grading homework Claude wrote; the leads reading actual rows is the evidence that counts. Lesson imported from the colony counter.
@@ -35,14 +35,13 @@ Built end to end and proven on synthetic availability in one day, 2026-08-24. Re
 
 ## Blocked
 
-- **Real data:** arrives 2026-08-27, nothing to parse until then.
-- **Form fixes:** relayed to the duty leads against the 08/28 deadline. Whether rank 1-5 landed changes the parser's job. Also awaiting their confirmation that Friday is chosen through the weekday ranking.
+- **Real data:** the form closes 2026-08-27 at 11:59 pm. Partial responses are parseable Thursday daytime; the complete set is Friday morning. Build and debug the parser against partials, run the real schedule Friday.
+
 
 ## Open questions
 
 - **Does the supervising ADRL expect to operate the tool themselves?** They probably do, per Shivam. That answer decides whether a v2 UI ever gets built. Parked until the solver is trusted on real data.
 - **What should the Exceptions column list?** Currently: RAs with blackout dates, written once per date. That was Claude's reading of the leads' convention, not a confirmed rule. Check against how they actually used the column last year.
-- **Did the form fixes actually land?** Relayed to the leads, never confirmed. Decides how the ranking matrix parses and whether the exceptions column comes back in `MM/DD (Reason)` shape. First thing to check on the export.
 - **How messy is the free-text availability in practice?** Partly answered by the 25-26 replay: of 42 respondents, about 5 wrote a hard constraint with no date in it ("entire thanksgiving break", "I usually go home every weekend"). Shivam's hand-check before the parser runs is the mitigation.
 - **Real experienced availability in the returners-only week.** 32 seats over 17 experienced is comfortable only if they are actually available Sept 8-13. Training runs through Sept 11 so they are on campus, but availability is not attendance.
 
