@@ -12,7 +12,7 @@ from pathlib import Path
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
-from .models import RA, AvailabilityData, ShiftInstance
+from .models import RA, AvailabilityData, ShiftInstance, WEEKEND_TIME_LABEL
 from .grid import HolidayRow
 from .roles import FD_P, FD_S, GR_P, GR_S
 
@@ -54,7 +54,8 @@ def _exceptions_by_date(data: AvailabilityData) -> dict[date, str]:
 
 AVAIL_HEADERS = (
     "RA", "Tier", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
-    "Dates they cannot work", "Shifts they could work", "Shifts assigned",
+    "Dates they cannot work", "Weekend pref", "Desk pref",
+    "Shifts they could work", "Shifts assigned", "Weekday shifts on 1st/2nd choice",
 )
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
 _UNAVAILABLE = "Class Conflict/Unavailable"
@@ -74,10 +75,23 @@ def _availability_rows(shifts, data: AvailabilityData, roles) -> list[tuple]:
         for rid in table.values():
             assigned[rid] = assigned.get(rid, 0) + 1
 
+    # weekday evenings each RA got, and how many landed on a 1st/2nd choice day
+    kept: dict[str, list[int]] = {}
+    by_sid = {s.sid: s for s in shifts}
+    for sid, table in roles.items():
+        s = by_sid.get(sid)
+        if not s or s.shift != "Evening (Weekday)":
+            continue
+        for rid in table.values():
+            rank = data.prefs(rid).weekday_rank.get(s.dow)
+            got, tot = kept.setdefault(rid, [0, 0])
+            kept[rid] = [got + (1 if rank and rank <= 2 else 0), tot + 1]
+
     out = []
     for ra in data.roster:
         free = data.available.get(ra.ra_id, set())
         blackout = data.blackout_dates.get(ra.ra_id, set())
+        prefs = data.prefs(ra.ra_id)
         cells = []
         for dow in WEEKDAYS:
             candidates = [s for s in shifts
@@ -86,16 +100,24 @@ def _availability_rows(shifts, data: AvailabilityData, roles) -> list[tuple]:
             if not candidates:
                 cells.append("")                      # no such shift this quarter
             elif any(s.key in free for s in candidates):
-                cells.append("Available")
+                rank = prefs.weekday_rank.get(dow)
+                cells.append(f"{rank}" if rank else "Available")
             else:
                 cells.append(_UNAVAILABLE)
+        wk = " / ".join(x for x in (
+            ", ".join(sorted(prefs.weekend_days)) or "any day",
+            ", ".join(sorted(prefs.weekend_times)) or "any time") if x)
+        got, tot = kept.get(ra.ra_id, [0, 0])
         out.append((
             ra.name,
             ra.tier,   # LRA / returner / new: this is what sets their target
             *cells,
             ", ".join(d.strftime("%m/%d") for d in sorted(blackout)),
+            wk,
+            prefs.location or "either",
             len(free),
             assigned.get(ra.ra_id, 0),
+            f"{got}/{tot}" if tot else "-",
         ))
     return out
 
@@ -171,12 +193,13 @@ def write_schedule(
         aw.append(row)
         for c in aw[aw.max_row]:
             c.font = body_font
-        for j in (9, 10):
+        for j in (11, 12, 13):
             aw.cell(aw.max_row, j).alignment = Alignment(horizontal="center")
         for j in range(3, 8):
             if aw.cell(aw.max_row, j).value == _UNAVAILABLE:
                 aw.cell(aw.max_row, j).fill = holiday_fill
-    for col_cells, width in zip(aw.columns, (12, 13, 22, 22, 22, 22, 22, 34, 20, 16)):
+    for col_cells, width in zip(aw.columns,
+                                (12, 11, 22, 22, 22, 22, 22, 32, 26, 12, 20, 16, 26)):
         aw.column_dimensions[col_cells[0].column_letter].width = width
     aw.freeze_panes = "C2"
 

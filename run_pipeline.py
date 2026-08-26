@@ -18,6 +18,7 @@ from ra_scheduler import preflight
 from ra_scheduler.solver import solve
 from ra_scheduler.roles import assign_all_roles
 from ra_scheduler.validate import validate
+from ra_scheduler.models import WEEKEND_TIME_LABEL
 from ra_scheduler.export import synthetic_path, write_schedule
 
 
@@ -66,7 +67,7 @@ def main() -> int:
     if result.training_shortfalls:
         print(f"[solve]     WARNING: below training floor: {result.training_shortfalls}")
 
-    roles = assign_all_roles(shifts, result.assignment, data.roster, seed=args.seed)
+    roles = assign_all_roles(shifts, result.assignment, data.roster, seed=args.seed, data=data)
 
     errors = validate(shifts, data, result.assignment, roles)
     print(f"[validate]  {len(errors)} hard-rule/role violations")
@@ -82,6 +83,39 @@ def main() -> int:
         c = by_tier[t]
         print(f"[fairness]  {t:9s} target {result.targets[t]:2d} -> "
               f"min {min(c)} / mean {sum(c)/len(c):.1f} / max {max(c)}")
+
+    # The form promises RAs their 1st or 2nd choice weekday. Report against that.
+    got, missed, weekend_ok, weekend_n = 0, 0, 0, 0
+    for s in shifts:
+        for rid in result.assignment.get(s.sid, []):
+            prefs = data.prefs(rid)
+            if s.shift == "Evening (Weekday)" and prefs.weekday_rank:
+                if prefs.weekday_rank.get(s.dow, 9) <= 2:
+                    got += 1
+                else:
+                    missed += 1
+            label = WEEKEND_TIME_LABEL.get(s.shift)
+            if label and (prefs.weekend_days or prefs.weekend_times):
+                weekend_n += 1
+                weekend_ok += prefs.weekend_cost(s.dow, label) == 0
+    if got + missed:
+        print(f"[prefs]     weekday shifts on a 1st or 2nd choice day: "
+              f"{got}/{got + missed} ({got / (got + missed):.0%})")
+    if weekend_n:
+        print(f"[prefs]     weekend shifts matching day AND time asked for: "
+              f"{weekend_ok}/{weekend_n} ({weekend_ok / weekend_n:.0%})")
+    desk_ok = desk_n = 0
+    for sid, table in roles.items():
+        for role, rid in table.items():
+            want = data.prefs(rid).location
+            if want:
+                desk_n += 1
+                desk_ok += want.startswith("Front") == role.startswith("Front")
+    if desk_n:
+        print(f"[prefs]     seated at the desk they asked for: "
+              f"{desk_ok}/{desk_n} ({desk_ok / desk_n:.0%})")
+    print(f"[prefs]     total preference cost {result.preference_cost} "
+          f"(0 = everyone got everything)")
 
     out = synthetic_path(args.out) if availability_is_synthetic else args.out
     write_schedule(out, shifts, holidays, roles, data)

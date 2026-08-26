@@ -95,6 +95,47 @@ class ShiftInstance:
 
 
 # --------------------------------------------------------------------------- #
+# Preferences: the SOFT signals the form collects.
+#
+# Every field is optional and an empty one costs nothing, so an RA who skipped
+# a question is never penalised. Hard constraints never live here: a weekday
+# marked "Class Conflict/Unavailable" is absent from `available` instead, which
+# is what makes it unbreakable.
+# --------------------------------------------------------------------------- #
+FRONT_DESK, GAME_ROOM = "Front Desk", "Game Room"
+
+# The form promises "your first or second most preferred weekday", so ranks 1
+# and 2 both count as kept. Past that the cost climbs by one per step: enough
+# to steer, gentle enough that a 5th choice is not treated as a catastrophe.
+RANK_COST = {1: 0, 2: 0, 3: 1, 4: 2, 5: 3}
+MAX_RANK_COST = max(RANK_COST.values())
+MAX_WEEKEND_COST = 2                       # wrong day (1) + wrong time (1)
+
+
+@dataclass
+class Preferences:
+    """One RA's soft preferences, in the shape the form collects them."""
+    weekday_rank: dict[str, int] = field(default_factory=dict)   # "Monday" -> 1..5
+    weekend_days: set[str] = field(default_factory=set)          # {"Saturday"}; empty = open
+    weekend_times: set[str] = field(default_factory=set)         # {"Morning","Evening"}; empty = any
+    location: str = ""                                           # FRONT_DESK | GAME_ROOM | "" = either
+
+    def weekday_cost(self, dow: str) -> int:
+        rank = self.weekday_rank.get(dow)
+        return RANK_COST.get(rank, 0) if rank else 0
+
+    def weekend_cost(self, dow: str, time_label: str) -> int:
+        day = 0 if not self.weekend_days or dow in self.weekend_days else 1
+        time = 0 if not self.weekend_times or time_label in self.weekend_times else 1
+        return day + time
+
+
+# "Evening (Weekend)" is the shift name; "Evening" is what the form calls it.
+WEEKEND_TIME_LABEL = {"Morning": "Morning", "Afternoon": "Afternoon",
+                      "Evening (Weekend)": "Evening"}
+
+
+# --------------------------------------------------------------------------- #
 # Availability bundle: what the form parser (or synthetic stand-in) produces
 # --------------------------------------------------------------------------- #
 @dataclass
@@ -104,6 +145,12 @@ class AvailabilityData:
     blackout_dates: dict[str, set[date]] = field(default_factory=dict)
     # ^ date-specific can't-dos (weddings/exams). Feeds the Exceptions column;
     #   already reflected inside `available`, kept separately only for display.
+    preferences: dict[str, Preferences] = field(default_factory=dict)
+    # ^ ra_id -> Preferences. Missing entries mean "no preference", which costs
+    #   nothing, so the solver behaves exactly as before on data without them.
+
+    def prefs(self, ra_id: str) -> Preferences:
+        return self.preferences.get(ra_id) or Preferences()
 
 
 # --------------------------------------------------------------------------- #
