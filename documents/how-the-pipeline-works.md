@@ -69,7 +69,7 @@ are 500 seats, the numbers recompute on their own. Nothing silently goes stale.
 
 ---
 
-## `grid.py` — reading the leads' spreadsheet
+## `grid.py` — reading the duty schedule template
 
 **Plain version.** Opens the Excel file and turns each row into a shift the program
 can work with.
