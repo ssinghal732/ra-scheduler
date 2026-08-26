@@ -52,6 +52,54 @@ def _exceptions_by_date(data: AvailabilityData) -> dict[date, str]:
     return {d: ", ".join(sorted(names)) for d, names in out.items()}
 
 
+AVAIL_HEADERS = (
+    "RA", "Tier", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+    "Dates they cannot work", "Shifts they could work", "Shifts assigned",
+)
+WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+_UNAVAILABLE = "Class Conflict/Unavailable"
+
+
+def _availability_rows(shifts, data: AvailabilityData, roles) -> list[tuple]:
+    """One row per RA, in the shape the availability form collects.
+
+    The weekday columns are DERIVED, not stored: an RA counts as unavailable on
+    a weekday when there is no non-blacked-out weekday evening on that day they
+    can work. That is the same signal the form's ranking matrix carries, read
+    back out of the availability set so this sheet cannot drift from what the
+    solver actually saw.
+    """
+    assigned: dict[str, int] = {}
+    for table in roles.values():
+        for rid in table.values():
+            assigned[rid] = assigned.get(rid, 0) + 1
+
+    out = []
+    for ra in data.roster:
+        free = data.available.get(ra.ra_id, set())
+        blackout = data.blackout_dates.get(ra.ra_id, set())
+        cells = []
+        for dow in WEEKDAYS:
+            candidates = [s for s in shifts
+                          if s.dow == dow and s.shift == "Evening (Weekday)"
+                          and s.date not in blackout]
+            if not candidates:
+                cells.append("")                      # no such shift this quarter
+            elif any(s.key in free for s in candidates):
+                cells.append("Available")
+            else:
+                cells.append(_UNAVAILABLE)
+        out.append((
+            ra.name,
+            ra.tier,   # LRA / returner / new: this is what sets their target
+            *cells,
+            ", ".join(d.strftime("%m/%d") for d in sorted(blackout)),
+            len(free),
+            assigned.get(ra.ra_id, 0),
+        ))
+    return out
+
+
 def write_schedule(
     path: str,
     shifts: list[ShiftInstance],
@@ -111,4 +159,25 @@ def write_schedule(
     for col_cells, width in zip(ws.columns, (6, 12, 14, 18, 11, 17, 17, 17, 17, 26, 40)):
         ws.column_dimensions[col_cells[0].column_letter].width = width
     ws.freeze_panes = "A2"
+
+    # Second tab: what the solver was given. Lets anyone reading the schedule
+    # check an assignment against the availability behind it without a rerun.
+    aw = wb.create_sheet("Availability")
+    aw.append(AVAIL_HEADERS)
+    for c in aw[1]:
+        c.font, c.fill = header_font, header_fill
+        c.alignment = Alignment(horizontal="center")
+    for row in _availability_rows(shifts, data, roles):
+        aw.append(row)
+        for c in aw[aw.max_row]:
+            c.font = body_font
+        for j in (9, 10):
+            aw.cell(aw.max_row, j).alignment = Alignment(horizontal="center")
+        for j in range(3, 8):
+            if aw.cell(aw.max_row, j).value == _UNAVAILABLE:
+                aw.cell(aw.max_row, j).fill = holiday_fill
+    for col_cells, width in zip(aw.columns, (12, 13, 22, 22, 22, 22, 22, 34, 20, 16)):
+        aw.column_dimensions[col_cells[0].column_letter].width = width
+    aw.freeze_panes = "C2"
+
     wb.save(path)

@@ -35,6 +35,12 @@ The whole v1, planned and built in one session, three days before real data arri
 - **Four parser decisions locked.** Key on ucsd email, never names (only 4 of 45 names matched exactly last year). Blackout dates MM/DD only, chopped at position 5, since the new form specifies the shape and Shivam hand-checks before the parser runs. Non-submitters stop the run and get listed rather than defaulting to available or unavailable, because both defaults produce a plausible schedule built on someone the tool knows nothing about. No NLP: 43 hand-checked rows a quarter don't need it, and a regex that fails says so while a model guesses confidently.
 - **Documents folder added** (`94e8fd6`): a plain-language walkthrough of every module, also published as a shareable page.
 
+## 2026-08-26
+
+- **Availability tab added to the exported workbook.** One row per RA in the shape the form collects: tier, the five weekday cells, dates they cannot work, shifts they could have worked, shifts they got. The weekday cells are derived from the availability set rather than stored, so the sheet cannot drift from what the solver actually saw. Written on every run, not just synthetic ones, so anyone reading a schedule can check an assignment against the availability behind it.
+- **Output filename now forced to carry SYNTHETIC** when availability is invented. Asking for `fall_2026_final.xlsx` produces `fall_2026_final_SYNTHETIC.xlsx` and nothing else; the caller does not get to choose. Idempotent, and flips to real behaviour with one line when `--availability` lands.
+- **A gap found by asking the right question.** Shivam noticed the Availability tab showed no preference data and asked whether preferences were in the solver. They are not, which was known and parked. What was not known: the 08-24 checkpoint recorded "each RA is assigned ONE recurring weekday" as a confirmed model, and the solver never implemented it. Measured against last year's real schedule to settle the shape: only 5 of 44 RAs had a single weekday, and the median RA did 62% of their weekday evenings on their most-used day against our 50%. So the leads pull toward a day rather than fixing one. Decision: build the soft pull, not the hard assignment. Tracked as AiCC task #4, blocked on the parser.
+
 ## 2026-07-12
 
 - **v1 spec written and committed** (`../ra-scheduler-v1-spec.md`, `06e5cde`): problem, domain model, hard and soft constraints, CP-SAT approach, MVP-first build order. Two inputs left external: pairing-period length and the duty-date calendar. Both resolved 2026-08-24.
