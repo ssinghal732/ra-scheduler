@@ -127,7 +127,7 @@ Install only what the code in front of you imports.
 - **Data still never enters the repo.** The real grid, the availability export, and any filled schedule carry real RA names. `.gitignore` blocks `*.xlsx` / `*.csv` / `*.json` so that cannot happen by accident.
 - **People:** the ADRL supervising this project is also a duty lead; two RA duty leads run the schedule day to day. The ADRL receives the finished schedule; whether they operate the tool themselves is an open question that decides the v2 UI. Names are deliberately kept out of this repo.
 - **The form-fix thread is separate but coupled.** A fix list went to the duty leads before the 08/28 form deadline (rank 1-5 not 1-4, weekday and weekend definitions made consistent, weekend day/time checkbox split). The parser's job on 08-27 depends partly on which fixes landed.
-- **Time category:** none created for this project yet. Ask Shivam before creating one; never guess hours.
+- **Time category:** `RA_Scheduler`, short code `RAS`, in `technical-projects`. Created 2026-08-26. Log with `time_log(category='RAS', ...)`. Ask Shivam for the hours; never guess them.
 
 ---
 
