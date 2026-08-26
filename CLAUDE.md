@@ -1,0 +1,140 @@
+# RA Scheduler
+
+Fills the Seventh College quarterly RA duty schedule: 448 seats across 138 shifts and 43 RAs, from the duty leads' grid plus the availability form. A CP-SAT solver replaces the assignment step that currently takes 2-3 RAs roughly 8 hours per quarter by hand, and it has to honor rules a hand process routinely fumbles: a returners-only opening week, four weeks of experienced+new walk pairs, and per-tier shift loads.
+
+This file covers what this project is and how it's wired. How we work together lives in `~/.claude/CLAUDE.md`, which loads automatically in every session. Read that first.
+
+Update this file when the project changes shape. A stale CLAUDE.md is worse than none.
+
+---
+
+## Boot
+
+AiCC area: `technical-projects`. Boot it explicitly, since the default area is `personal`.
+
+The build is Technical Projects work. The duty-scheduling domain facts (what a duty walk is, who the duty leads are, RA training dates) belong to the `resident-assistant` lane, but this project stays here. Same routing as the colony counter: role-grown context lives in its lane, big builds live here.
+
+Then NOW.md, then a skim of CHANGELOG.md, then `git log --oneline -10`, then ask Shivam what he wants to work on.
+
+---
+
+## How we work in this repo
+
+Earned on 2026-08-24, the day the whole v1 was built. Everything in `~/.claude/CLAUDE.md` applies on top.
+
+**Every design and strategy decision is Shivam's.** He said this in as many words. Surface the decision, give one recommendation with its tradeoff, and wait. The v1 decision log (D1-D6, F1-F3, Q1-Q2) all went through him and every one of them is in the code.
+
+**Flag judgment calls out loud, separately from the work.** The one invented rule of the build ("experienced RA must be Primary on 2-person shifts") got caught within a message because it was flagged as a judgment call instead of buried. When a rule came from you and not from Shivam or the data, say so.
+
+**Prove rule claims from the output file, not from tests.** Shivam verifies by asking pointed "did you implement X" questions. The answer that lands is rows pulled from the generated schedule showing the rule holding, not "yes" and not a passing test Claude wrote and also scored. `validate.py` shares zero code with the solver for the same reason.
+
+**Shivam can code. He is newer to constraint solving.** Python and R are fine, don't explain a for loop. Do slow down on CP-SAT concepts: the on/off-switch framing of decision variables, why hard constraints never break, how a weighted objective encodes priorities. The plain-language explanation of the solver was explicitly requested and landed well.
+
+**Plainer and more organized beats thorough.** He pushed twice in one session for cleaner structure: where we are, what we want, how we get there, decisions in labeled blocks. Tables for status, short sections, one question at a time.
+
+---
+
+## Standing decisions, do not reopen
+
+Each was decided by Shivam with a reason, 2026-08-24 unless noted. Reopening them wastes a session.
+
+| Decision | Why |
+|---|---|
+| Full quarter in one solve, rules date-gated (D1) | The pairing block forces experienced RAs front-heavy; only whole-quarter balancing nets out to fair totals. Same model work either way. |
+| Friday is a weekday | The form contradicts itself three ways; the grid settles it. Every Friday is "Evening (Weekday)" with 4 seats, identical to Mon-Thu. |
+| LRA = experienced tier for eligibility and pairing, half load for fairness (D5, D6) | An LRA is an experienced returning RA. No other LRA restriction exists (Q2). |
+| Fairness targets are soft goals, never hard caps (F1) | A hard cap can declare the whole schedule impossible over one extra shift. Availability is the only unbreakable thing. |
+| Minimax objective (F2) | RAs compare counts with each other. Protecting the worst-off person is what "fair" feels like; a few people slightly off beats one person slammed. |
+| LRA target 5, 6 only if forced (F3) | Half of the new-RA baseline is 5.5; Shivam chose the low side, implemented as a heavier deviation weight. |
+| Pairing period is training, so every new RA gets >= 2 pairing shifts (Q1) | Quarter-total fairness alone left 3 new RAs with zero pairing shifts, perfect counts, and no training. Soft floor, weight above the fairness terms, flags anyone it cannot seat. |
+| Primary / Secondary = first walk (7:30) / second walk (9:30), not seniority | Corrected by Shivam after Claude invented a leadership reading. The walk is done by the pair together; during the pairing period every walk pair is 1 experienced + 1 new. On 2-person shifts the label order is randomized because it carries no meaning. |
+| Solver picks people; roles are a post-step | FRA/GRA is a soft preference, not eligibility. 2 experienced + 2 new selected guarantees a legal pair arrangement always exists, so slotting never fails. |
+| Parser keys on ucsd email, never on names (2026-08-24) | Replaying last year, only 4 of 45 names matched exactly between the form and the schedule sheet. Email is the one stable key both sides carry. |
+| Non-submitters stop the run and get listed (2026-08-24) | Treating them as fully available or fully unavailable both produce a plausible-looking schedule built on someone the tool knows nothing about. Shivam chases them, or decides explicitly, before solving. |
+| Blackout dates are MM/DD only, chopped at position 5 (2026-08-24) | The new form specifies `MM/DD (Reason)` and Shivam hand-checks responses before the parser sees them. Anything without a leading date is reported as unreadable, never guessed at. |
+| No NLP or LLM anywhere in the parser (2026-08-24) | 43 rows once a quarter, pre-checked by a human. A regex that cannot read something says so; a model returns a confident guess. Reproducibility (same inputs plus same seed gives the same schedule) is worth more than tolerance for messy text. |
+| Targets derived from seat count each run, never hardcoded | `compute_targets()` re-derives 11/10/5 from the grid and roster, so a changed grid cannot silently invalidate the numbers. |
+| Solver first, no UI | From the spec, reaffirmed. The supervising ADRL would probably want to operate the tool themselves; that is the v2 UI trigger and it is parked until the solver is trusted on real data. |
+| CP-SAT over a hand-rolled greedy loop | The hard rules (availability, composition, pairing, back-to-back) are what a CP solver enforces natively, in less code than a greedy loop that backtracks. |
+| Fairness = total shift count only | From the spec. No weekend-load term: an RA who can do no weekdays legitimately ends up weekend-heavy. |
+| Weekday end-times ignored in v1 | From the spec. Redundant with the ranking matrix, and they are the messiest free text on the form. |
+
+---
+
+## The measured facts
+
+All measured 2026-08-24 against the real grid (`26-27_RA_Duty_Schedule.xlsx`) and the confirmed roster. Re-verify against the real availability data when it lands.
+
+**The grid** is the full quarter, 2026-09-08 to 2026-12-13: 138 shift instances, 448 seats, 86 duty dates. Holidays (Nov 11, 17, 26, 27) are written as the literal word "Holiday" across the slot cells, not a flag column. The week of Sept 21-27 has no duty at all.
+
+**Rule blocks:** returners-only Sept 8-13 (6 dates, 32 seats), pairing Sept 14-Oct 18 (28 dates, 144 seats), normal Oct 19-Dec 13 (52 dates, 272 seats). The pairing block is exactly 4 duty weeks once the gap week is skipped, matching Shivam's "4 week period."
+
+**Roster:** 43 RAs = 3 LRA + 14 returners + 26 new, so 17 experienced. Loads: new = baseline, returner = baseline - 1, LRA = half. At 448 seats that derives to targets of 11 / 10 / 5.
+
+**Staffing per shift:** weekday evening 2 FD + 2 GR; weekend morning and afternoon 2 FD; weekend evening 2 FD + 2 GR. Duty-round location alternates per date and is carried from the grid, never chosen.
+
+**The proven run** (synthetic availability, real everything else): OPTIMAL in under 60s, ~5,900 boolean variables, 0 violations from the independent validator, max deviation 1 (LRA all 5, returners 10-11, new 11-12), all 26 new RAs at or above the training floor, all 28 pairing-period evening shifts with mixed Primary and Secondary pairs.
+
+**Last year's schedule, replayed 2026-08-24** (`25-26 RA Duty Schedule.xlsx`, Fall sheet, 148 shifts / 480 seats / 45 names). Every shift carried exactly the right headcount. `validate.py` returned 6 findings: 5 of them come from one date, 2025-12-14, where a single name is written into all 8 slots and appears nowhere else in the quarter; the sixth is a genuine Morning-to-Afternoon back-to-back on 2025-09-20.
+
+**The replay's own limit, and it is a real one:** that workbook has an `RA Duty Swaps` sheet with 355 records. The schedule sheet is the PLAN, not the record of what happened. 2025-09-20 alone saw 7 swaps. So a row that looks like a violation may have been fixed, and a clean row may have been swapped into a problem. Validating against last year's sheet validates a plan that was amended 355 times; treat "replay last year" as weak evidence, not proof.
+
+**Availability replay** (last year's `RA Duty Availability (FALL)`, 42 responses): 44 weekday Class-Conflict marks across 31 people, 168 blackout dates across 38. After joining, 406 of 480 assignments were checkable. The plan contained 5 people scheduled on a weekday they marked unavailable and 3 on a date they listed as an exception, four of those inside finals week, the most-swapped week of the quarter. Same caveat applies.
+
+**Feasibility margin worth knowing:** the returners-only week is 32 seats over 17 experienced RAs, about 1.9 shifts each. Comfortable with generous availability; the first thing to re-check on real data.
+
+---
+
+## Stack
+
+```
+Python 3.12
+ortools              CP-SAT, the solver
+openpyxl             reads the grid, writes the filled schedule
+
+NOT USED: pandas (nothing needs it), no database (CSV/xlsx throughout),
+no web framework (UI is v2, gated on the solver being trusted)
+```
+
+Install only what the code in front of you imports.
+
+---
+
+## Layout
+
+| Path | What lives there |
+|---|---|
+| `ra_scheduler/models.py` | Every rule constant: tiers, block dates, staffing shapes, target math. Nothing is defined twice. |
+| `ra_scheduler/grid.py` | Duty-grid xlsx to shift instances, holiday rows kept separately for export. |
+| `ra_scheduler/synthetic.py` | Synthetic availability, in the exact `AvailabilityData` shape the real form parser must produce. The parser replaces this one module and nothing downstream changes. |
+| `ra_scheduler/preflight.py` | Pre-solve arithmetic. Turns a bare `INFEASIBLE` into a dated list of what is short, and catches the parser faults that look like scheduling conflicts. Necessary conditions only; the solver stays the authority. |
+| `ra_scheduler/solver.py` | CP-SAT selection: who works each shift. All hard rules and the soft objective. |
+| `ra_scheduler/roles.py` | Slots the chosen people into named columns. Walk-pair rules live here. |
+| `ra_scheduler/validate.py` | Independent re-check of every hard rule and role invariant. Shares no logic with solver or roles, on purpose. |
+| `ra_scheduler/export.py` | Writes the filled xlsx in the duty leads' exact column shape. |
+| `run_pipeline.py` | End to end: grid, availability, solve, roles, validate, export. |
+| `tests/test_roles.py` | Unit tests on the trickiest pure logic. `python tests/test_roles.py`. |
+| `tests/test_preflight.py` | Unit tests on the pre-solve check. No ortools needed, so they run anywhere. |
+| `documents/how-the-pipeline-works.md` | Plain-language walkthrough of every module, written for a non-technical reader. Published as an artifact too; keep the two in step. |
+
+---
+
+## Repo-specific notes
+
+- **Where the code lives:** `ssinghal732/ra-scheduler` (private), created 2026-08-24, first commit `28959ca`. This working copy at `~/src/Technical-Projects/RA-Scheduler/` is the repo, not a mirror. The earlier copy under `ssinghal732/AICC` at `technical-projects/ra-scheduler/code/` (`6f792fc`) is now history; the v1 spec still sits beside it at `../ra-scheduler-v1-spec.md` (`06e5cde`, 2026-07-12).
+- **Private was chosen because it is the reversible direction.** Private can become public later; the reverse leaves the history exposed. Flipping it is Shivam's call.
+- **Code yes, docs yes, data never.** Changed 2026-08-26 by Shivam, overriding the global rule that operator docs stay out of a repo. CLAUDE.md, NOW.md, and CHANGELOG.md are now tracked and pushed, so this repo carries its own context and a fresh session finds everything in one place. The condition attached: **no real names in any of them.** People are referred to by role, because `git push` is permanent and stripping a name later means rewriting history, not editing a file.
+- **Data still never enters the repo.** The real grid, the availability export, and any filled schedule carry real RA names. `.gitignore` blocks `*.xlsx` / `*.csv` / `*.json` so that cannot happen by accident.
+- **People:** the ADRL supervising this project is also a duty lead; two RA duty leads run the schedule day to day. The ADRL receives the finished schedule; whether they operate the tool themselves is an open question that decides the v2 UI. Names are deliberately kept out of this repo.
+- **The form-fix thread is separate but coupled.** A fix list went to the duty leads before the 08/28 form deadline (rank 1-5 not 1-4, weekday and weekend definitions made consistent, weekend day/time checkbox split). The parser's job on 08-27 depends partly on which fixes landed.
+- **Time category:** none created for this project yet. Ask Shivam before creating one; never guess hours.
+
+---
+
+## Tracking docs
+
+| File | What lives there |
+|---|---|
+| [NOW.md](NOW.md) | Active, next, blocked, open questions. Update when priorities shift. |
+| [CHANGELOG.md](CHANGELOG.md) | Dated record of what shipped. |
+| `../ra-scheduler-v1-spec.md` | The v1 spec: problem, domain model, constraints, build order. Update when a decision changes it. |
