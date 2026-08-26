@@ -18,7 +18,7 @@ from ra_scheduler import preflight
 from ra_scheduler.solver import solve
 from ra_scheduler.roles import assign_all_roles
 from ra_scheduler.validate import validate
-from ra_scheduler.export import write_schedule
+from ra_scheduler.export import synthetic_path, write_schedule
 
 
 def main() -> int:
@@ -36,8 +36,11 @@ def main() -> int:
     print(f"[grid]      {len(shifts)} shifts, {sum(s.seats for s in shifts)} seats, "
           f"{len(holidays)} holiday rows, {shifts[0].date} -> {shifts[-1].date}")
 
+    # When the form parser lands, this becomes `args.availability is None`.
+    availability_is_synthetic = True
     data = make_availability(shifts)  # <- replaced by the real parser on Aug 27
-    print(f"[avail]     {len(data.roster)} RAs (synthetic)")
+    print(f"[avail]     {len(data.roster)} RAs "
+          f"({'SYNTHETIC, invented people' if availability_is_synthetic else 'from the form export'})")
 
     findings = preflight.check(shifts, data)
     print(f"[preflight] {preflight.summarize(findings)}")
@@ -80,8 +83,13 @@ def main() -> int:
         print(f"[fairness]  {t:9s} target {result.targets[t]:2d} -> "
               f"min {min(c)} / mean {sum(c)/len(c):.1f} / max {max(c)}")
 
-    write_schedule(args.out, shifts, holidays, roles, data)
-    print(f"[export]    wrote {args.out}")
+    out = synthetic_path(args.out) if availability_is_synthetic else args.out
+    write_schedule(out, shifts, holidays, roles, data)
+    print(f"[export]    wrote {out}")
+    if availability_is_synthetic:
+        if out != args.out:
+            print(f"[export]    renamed from {args.out}: availability was synthetic")
+        print("[export]    These are invented people on real dates. Do not send this to anyone.")
     return 0
 
 

@@ -159,3 +159,19 @@ if __name__ == "__main__":
             fn()
             print(f"ok  {name}")
     print("all tests passed")
+
+
+# --- output naming: a synthetic run must announce itself in the filename ---
+
+def test_synthetic_path_stamps_the_name():
+    from ra_scheduler.export import synthetic_path
+    assert synthetic_path("filled.xlsx") == "filled_SYNTHETIC.xlsx"
+    assert synthetic_path("out/fall_2026_final.xlsx") == "out/fall_2026_final_SYNTHETIC.xlsx"
+
+
+def test_synthetic_path_is_idempotent():
+    from ra_scheduler.export import synthetic_path
+    once = synthetic_path("filled.xlsx")
+    assert synthetic_path(once) == once
+    assert synthetic_path("already_synthetic.xlsx") == "already_synthetic.xlsx"
+    assert synthetic_path("MySynthetic.xlsx") == "MySynthetic.xlsx"  # case-insensitive

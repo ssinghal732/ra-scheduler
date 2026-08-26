@@ -7,6 +7,7 @@ Values only (no formulas), Arial throughout.
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -22,6 +23,24 @@ HEADERS = (
     "Duty Round Location", "Exceptions",
 )
 _SHIFT_ORDER = {"Evening (Weekday)": 0, "Morning": 0, "Afternoon": 1, "Evening (Weekend)": 2}
+
+
+SYNTHETIC_TAG = "SYNTHETIC"
+
+
+def synthetic_path(path: str) -> str:
+    """Force SYNTHETIC into a filename so an invented schedule cannot be mailed out.
+
+    A run on synthetic availability produces a file that is correct in every
+    visible way and staffed by people who do not exist. The filename is the
+    only thing standing between that file and someone's inbox, so the caller
+    does not get to choose whether it says so. Idempotent: a name that already
+    carries the tag is returned unchanged.
+    """
+    p = Path(path)
+    if SYNTHETIC_TAG.lower() in p.stem.lower():
+        return path
+    return str(p.with_name(f"{p.stem}_{SYNTHETIC_TAG}{p.suffix}"))
 
 
 def _exceptions_by_date(data: AvailabilityData) -> dict[date, str]:
