@@ -63,7 +63,8 @@ Each was decided by Shivam with a reason, 2026-08-24 unless noted. Reopening the
 | Targets derived from seat count each run, never hardcoded | `compute_targets()` re-derives 11/10/5 from the grid and roster, so a changed grid cannot silently invalidate the numbers. |
 | Solver first, no UI | From the spec, reaffirmed. The supervising ADRL would probably want to operate the tool themselves; that is the v2 UI trigger and it is parked until the solver is trusted on real data. |
 | CP-SAT over a hand-rolled greedy loop | The hard rules (availability, composition, pairing, back-to-back) are what a CP solver enforces natively, in less code than a greedy loop that backtracks. |
-| Fairness = total shift count only | From the spec. No weekend-load term: an RA who can do no weekdays legitimately ends up weekend-heavy. |
+| ~~Fairness = total shift count only~~ **REVERSED 2026-08-26** | Was: no weekend-load term, because an RA who can do no weekdays legitimately ends up weekend-heavy. Shivam reversed it: the weekday/weekend MIX should be equitable too. The original reason still holds and is why the new term is soft, not hard. |
+| Weekday/weekend balance is a soft goal, derived from the grid (2026-08-26) | Ideal split = tier target x the grid's weekday share. This quarter is 240 of 448 seats = 53.6%, giving LRA 3/2, returner 5/5, new 6/5. Shivam's own example ("10 shifts should be 5 and 5") is exactly what falls out for a returner. Sits ABOVE preferences: equity outranks preference. Measured cost on the real grid: none. |
 | Weekday end-times ignored in v1 | From the spec. Redundant with the ranking matrix, and they are the messiest free text on the form. |
 
 ---
@@ -87,6 +88,10 @@ All measured 2026-08-24 against the real grid (`26-27_RA_Duty_Schedule.xlsx`) an
 **The replay's own limit, and it is a real one:** that workbook has an `RA Duty Swaps` sheet with 355 records. The schedule sheet is the PLAN, not the record of what happened. 2025-09-20 alone saw 7 swaps. So a row that looks like a violation may have been fixed, and a clean row may have been swapped into a problem. Validating against last year's sheet validates a plan that was amended 355 times; treat "replay last year" as weak evidence, not proof.
 
 **Availability replay** (last year's `RA Duty Availability (FALL)`, 42 responses): 44 weekday Class-Conflict marks across 31 people, 168 blackout dates across 38. After joining, 406 of 480 assignments were checkable. The plan contained 5 people scheduled on a weekday they marked unavailable and 3 on a date they listed as an exception, four of those inside finals week, the most-swapped week of the quarter. Same caveat applies.
+
+**Weekday/weekend balance, A/B measured 2026-08-26 on the real grid, same inputs.** RAs on their ideal mix 12/43 -> 38/43; worst imbalance 4 shifts -> 1. Max deviation unchanged at 1, weekday preference unchanged at 99%, weekend unchanged at 100%. **It cost nothing.** The prediction that preferences would drop was wrong: the solver already had many equally-optimal schedules and was picking among them arbitrarily, so the balance term selected a better one from the same set. The 5 RAs left at +1 are forced arithmetic, not a miss: the ideals sum to 235 against 240 weekday seats.
+
+**Watch out when A/B testing the objective:** the first comparison was invalid because the balance feature has TWO terms (a worst-case and a sum) and only one was being switched off. Both weights are now named constants (`W_MAXIMB`, `W_IMBSUM`) so an off switch is really off.
 
 **Preferences, measured 2026-08-26 on the real grid with synthetic preferences.** 237 of 240 weekday shifts landed on a 1st or 2nd choice day (99%); 41 of 43 RAs got 100% of theirs. Every weekend shift matched both the day and time asked for (188/188). Desks 212/275 (77%), lower because a pairing shift puts one person at each desk and both may want the same one. Fairness unchanged: max deviation 1, LRA all 5. Total preference cost 3.
 
