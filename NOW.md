@@ -70,15 +70,26 @@ Open question for Shivam: is this for the duty leads and ADRLs only, or is it al
 
 ### Doc 2, technical design and architecture
 
-Suggested shape: what exists today (v1, built, tested, one machine, files in and files out) drawn honestly, then what v2 adds around it. The solver core does not change; v2 wraps it.
+**Forks answered by Shivam 2026-08-27.** These are the v2 decisions; doc 2 is the canonical record once approved.
 
-Things to decide tomorrow, each is a real fork:
-- **Where it runs.** A laptop script the leads run, or a hosted service. Decides whether there is a backend at all.
-- **Data store.** Today it is xlsx in and xlsx out. A UI with swaps needs a source of truth that is not a spreadsheet. Smallest thing that works is probably SQLite; anything more needs a reason.
-- **Does the Google Form stay?** The form-to-xlsx-to-parser path works. A UI could replace the form with its own availability page and skip the parser entirely, or keep the form and import. Keeping the form is less to build and the leads already know it.
-- **LLM: no.** The no-NLP decision for the parser stands and nothing in v2 wants one. Worth one sentence in the doc saying so and why, since people will ask.
-- **API surface**, if hosted: roughly schedule (build, publish, read), availability (submit, read), swaps (request, approve, apply), calendar (ICS per RA). Small.
-- **Calendar export** is the one v2 feature with a known shape: one ICS feed per RA, regenerated when a swap is approved, which is exactly the sync problem last year's note complains about.
+| Question | Answer |
+|---|---|
+| Roles | Three groups on the admin side (duty leads, ADRLs, lead RAs), all with the same admin powers; every other RA is a member. Two permission levels, three groups. |
+| What RAs see | The whole schedule, read only. |
+| Login | UCSD login if it can be had; otherwise a private link or key. CC's read: "sign in with Google, ucsd.edu only" is the practical path, UCSD SSO the upgrade. |
+| Where it runs | A website, always up, with swaps and calendars. Not a laptop tool. |
+| Cost | Free if possible; a few dollars a month out of pocket is acceptable. **Google Sites cannot host this** (static pages, no server); flagged. |
+| Who maintains it | Unknown. Hoped to be a legacy project the duty leads keep using after Shivam graduates. Pushes hard toward the simplest possible stack. |
+| Availability in | Google Form for the first web quarter, imported; maybe built into the site later. |
+| Roster | Stays a spreadsheet the site reads. Shivam cited FERPA; CC flagged that exposure follows where names-plus-schedules live, not the roster file, so privacy is its own section and "does UCSD allow an outside host" is question one for the ADRL. |
+| Swaps | One-for-one trades only, no "cover me." A lead approves every swap: one click when no rule breaks, a flag and an alert first when one would. Finding the trade partner stays on the GroupMe. |
+| On approval | The RA's calendar updates, the schedule updates, and they get an email. |
+| Calendars | One subscribable feed per RA that updates itself, plus a downloadable file; and one calendar with every shift, visible to everyone. |
+| Settings leads can change | All of them: rule-block dates, tier loads, preference priority, which soft rules are on. Per quarter, current values shown. |
+| Hand edits | Yes, leads can move a person after the build, and the rules get re-checked when they do. |
+| Metrics | Swaps per week (must). Weekday/weekend split, first/second-choice rate, fairness split (nice to have). |
+| Stack in the doc | Describe the pieces; name the stack as "likely." |
+| Audience for doc 2 | Portfolio. Needs framing: problem, constraints, architecture, decisions with reasons. |
 
 ### Doc 3, design brief for Claude Design
 

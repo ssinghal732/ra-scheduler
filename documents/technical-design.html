@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RA Duty Scheduler, Technical Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  :root {
+    --paper:       #f3f6f7;
+    --surface:     #ffffff;
+    --ink:         #101820;
+    --ink-soft:    #3f4f5b;
+    --muted:       #697b88;
+    --rule:        #d8e1e7;
+    --rule-soft:   #e7edf1;
+    --accent:      #1f4e79;
+    --accent-on:   #ffffff;
+    --accent-wash: #e9f0f6;
+    --amber:       #8f5522;
+    --amber-wash:  #fbf3ea;
+    --code-bg:     #eef2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0d1317; --surface: #141d23; --ink: #e7eef3; --ink-soft: #b6c4ce;
+      --muted: #8496a2; --rule: #25333c; --rule-soft: #1c272e; --accent: #7fb5e2;
+      --accent-on: #0d1317; --accent-wash: #15242f; --amber: #d59b6b; --amber-wash: #1f1913;
+      --code-bg: #0f191f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0d1317; --surface: #141d23; --ink: #e7eef3; --ink-soft: #b6c4ce;
+    --muted: #8496a2; --rule: #25333c; --rule-soft: #1c272e; --accent: #7fb5e2;
+    --accent-on: #0d1317; --accent-wash: #15242f; --amber: #d59b6b; --amber-wash: #1f1913;
+    --code-bg: #0f191f;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+    font-size: 17px; line-height: 1.7; -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 820px; margin: 0 auto; padding: 56px 24px 96px; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 18px;
+  }
+  h1 {
+    font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 700;
+    font-size: clamp(2rem, 5vw, 2.8rem); line-height: 1.1; letter-spacing: -.025em; margin: 0 0 14px;
+  }
+  .standfirst {
+    font-style: italic; color: var(--ink-soft); font-size: 1.08rem;
+    margin: 0 0 40px; padding-bottom: 28px; border-bottom: 1px solid var(--rule);
+  }
+  h2 {
+    font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 600;
+    font-size: 1.42rem; letter-spacing: -.015em; line-height: 1.25; margin: 56px 0 14px;
+  }
+  h3 {
+    font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 600;
+    font-size: 1.05rem; margin: 28px 0 8px;
+  }
+  p { margin: 0 0 18px; max-width: 70ch; }
+  ul, ol { margin: 0 0 18px; padding-left: 20px; max-width: 70ch; }
+  li { margin-bottom: 7px; }
+  li strong, p strong { font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 600; }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .86em;
+    background: var(--code-bg); padding: .1em .38em; border-radius: 2px;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--rule); border-radius: 3px;
+    padding: 15px 17px; overflow-x: auto; margin: 0 0 20px;
+  }
+  pre code { background: none; padding: 0; font-size: 13px; line-height: 1.6; }
+
+  .lede {
+    background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--accent);
+    border-radius: 3px; padding: 20px 24px; margin: 0 0 8px;
+  }
+  .lede p:last-child { margin-bottom: 0; }
+  .figures { display: flex; flex-wrap: wrap; margin: 24px 0 8px; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; background: var(--surface); }
+  .figure { flex: 1 1 110px; padding: 12px 16px; border-right: 1px solid var(--rule); }
+  .figure:last-child { border-right: 0; }
+  .figure b { display: block; font-family: "IBM Plex Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums; font-size: 1.4rem; font-weight: 600; letter-spacing: -.02em; line-height: 1.2; }
+  .figure span { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+
+  .tablewrap { overflow-x: auto; margin: 18px 0 26px; }
+  table { border-collapse: collapse; width: 100%; font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 14.5px; background: var(--surface); border: 1px solid var(--rule); }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  th { font-weight: 600; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--accent-on); background: var(--accent); border-bottom: 0; }
+  tr:last-child td { border-bottom: 0; }
+  td code { font-size: .82em; }
+
+  .note { background: var(--amber-wash); border: 1px solid var(--rule); border-left: 3px solid var(--amber); border-radius: 3px; padding: 16px 20px; margin: 22px 0; }
+  .note p:last-child, .note ul:last-child { margin-bottom: 0; }
+
+  /* architecture boxes */
+  .arch { display: grid; gap: 14px; margin: 22px 0 26px; }
+  .tier { background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; padding: 14px 16px; }
+  .tier .label { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .boxes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .box { border: 1px solid var(--rule); border-top: 2px solid var(--accent); border-radius: 2px; background: var(--paper); padding: 8px 11px; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; }
+  .box.new { border-top-color: var(--amber); }
+  .box small { display: block; font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .legend { font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 12.5px; color: var(--muted); }
+  .legend i { display: inline-block; width: 22px; height: 3px; vertical-align: middle; margin: 0 6px 0 2px; }
+
+  .cols { display: grid; gap: 8px 36px; }
+  @media (min-width: 720px) { .cols { grid-template-columns: 1fr 1fr; } }
+  .cols h3 { margin-top: 14px; }
+
+  .colophon { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--rule); font-style: italic; color: var(--muted); font-size: .95rem; }
+  @media print {
+    body { background: #fff; color: #000; font-size: 11pt; }
+    .page { padding: 0; max-width: none; }
+    h2 { break-after: avoid; }
+    .lede, .note, table, .tier { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <p class="eyebrow">Student project · Seventh College, UC San Diego · August 2026</p>
+  <h1>RA Duty Scheduler, Technical Design</h1>
+  <p class="standfirst">How the scheduler works, what it's built from, and where the web version goes. Version 1 is built and tested; version 2 is designed here and not yet built.</p>
+
+  <div class="lede">
+    <p>Forty-three resident assistants share duty coverage across a quarter: every weekday evening and three shifts a day on weekends, about 440 seats over 14 weeks. The schedule has to respect each person's availability, a returners-only opening week, four weeks of experienced-plus-new training pairs, per-tier shift loads, and a handful of habits the duty leads carry in their heads. Two or three RAs used to build it by hand in four to five hours plus a few more after the draft went out, then run swaps through a form and a script all quarter.</p>
+    <p>Version 1 replaces the building step with a constraint solver: it reads the duty template and the availability form, applies the rules, picks the fairest legal schedule and among those the most-preferred, and writes the result back in the leads' own format, in under ten seconds. Version 2 puts it behind a website so that swaps, calendars, and the leads' settings live in one place.</p>
+  </div>
+
+  <div class="figures">
+    <div class="figure"><b>43</b><span>RAs</span></div>
+    <div class="figure"><b>136</b><span>shifts</span></div>
+    <div class="figure"><b>440</b><span>seats</span></div>
+    <div class="figure"><b>~4,700</b><span>decision variables</span></div>
+    <div class="figure"><b>&lt;10 s</b><span>to solve</span></div>
+    <div class="figure"><b>45</b><span>tests</span></div>
+  </div>
+
+  <h2>1. The problem, precisely</h2>
+  <p>Three inputs. The <strong>duty template</strong> is a spreadsheet from the duty leads listing every shift in the quarter with its date, time, and how many people it needs: weekday evenings take two at the front desk and two in the game room; weekend mornings and afternoons take two at the front desk; weekend evenings take four. Holidays are marked and need nobody. The <strong>availability form</strong> is a Google Form each RA fills in: a 1-to-5 ranking of weekdays with a class-conflict option, dates they can't work, a weekend day and time preference, and a desk preference. The <strong>roster</strong> maps each RA to a tier: lead RA, returner, or new.</p>
+  <p>One output: the same template with a name in every seat.</p>
+
+  <h3>Hard rules</h3>
+  <ul>
+    <li>Nobody works a shift they marked unavailable, whether by weekday conflict or by date.</li>
+    <li>Every shift is filled with exactly its seat count.</li>
+    <li>The opening week is returners only.</li>
+    <li>During the four pairing weeks, every four-person shift has two experienced and two new RAs, arranged so both walk pairs and both desk pairs are mixed.</li>
+    <li>No morning-then-afternoon or afternoon-then-evening on the same weekend day.</li>
+  </ul>
+
+  <h3>Soft goals, in priority order</h3>
+  <ol>
+    <li>Every new RA gets at least two pairing-period shifts, because that period exists to train them.</li>
+    <li>Shift counts sit on per-tier targets, protecting whoever would otherwise be worst off.</li>
+    <li>Each person's weekday and weekend split tracks the quarter's own ratio.</li>
+    <li>At most one shift per person per calendar week.</li>
+    <li>Weekday ranking, then weekend day, then weekend time, as a tiebreaker only.</li>
+  </ol>
+  <p>Desk preference is handled after the solve, when people are seated within a shift, so it can never move anyone off a day or time.</p>
+
+  <h2>2. What exists: version 1</h2>
+  <p>A Python package and one command. No server, no database, no UI. Files in, files out.</p>
+
+  <div class="arch">
+    <div class="tier">
+      <div class="label">Inputs</div>
+      <div class="boxes">
+        <div class="box">duty template .xlsx<small>from the leads</small></div>
+        <div class="box">form responses .xlsx<small>Google Forms export</small></div>
+        <div class="box">roster .xlsx<small>Email · Name · Tier</small></div>
+      </div>
+    </div>
+    <div class="tier">
+      <div class="label">Pipeline, one module per stage</div>
+      <div class="boxes">
+        <div class="box">grid.py<small>template → shifts</small></div>
+        <div class="box">parse_form.py<small>responses → availability + preferences, with a findings report</small></div>
+        <div class="box">preflight.py<small>counts that predict infeasibility, by date</small></div>
+        <div class="box">solver.py<small>CP-SAT: who works each shift</small></div>
+        <div class="box">roles.py<small>which desk, which walk</small></div>
+        <div class="box">validate.py<small>independent re-check of every rule</small></div>
+        <div class="box">export.py<small>filled .xlsx, plus an availability tab</small></div>
+      </div>
+    </div>
+    <div class="tier">
+      <div class="label">Underneath</div>
+      <div class="boxes">
+        <div class="box">models.py<small>every rule constant, once</small></div>
+        <div class="box">synthetic.py<small>invented data for dry runs; output stamped SYNTHETIC</small></div>
+        <div class="box">tests/<small>4 suites, 45 tests</small></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>The solver</h3>
+  <p>Assignment is modelled as one boolean per (RA, shift) pair, created only where that RA is available, so availability is enforced by the variable not existing rather than by a constraint. The ceiling is 43 RAs times 136 shifts, 5,848; with test availability about 4,700 are created, and the real number will move with the real form. Google OR-Tools CP-SAT searches over those. The hard rules are linear constraints on them: the sum over a shift equals its seat count; the sum of new-RA variables in a returners-only shift is zero; the sum of experienced variables in a pairing shift is half the seats; two same-day back-to-back variables sum to at most one.</p>
+  <p>The soft goals become one weighted objective. Two ideas keep the priorities honest. First, fairness is <em>minimax</em>: the objective minimises the largest deviation of anyone's count from their tier target before it minimises the sum, so one person being three shifts over costs more than three people being one over. Second, preferences are a strict tiebreaker. The fairness terms are multiplied by a scale derived from the grid that exceeds the worst possible total preference cost (1,137 against 1,136 on this quarter), so no arrangement of preferences can ever justify moving one person one shift off target. Among equally fair schedules the solver picks the one people asked for.</p>
+  <p>Every target and threshold is derived from the inputs at run time: tier targets from the seat count and roster, the weekday/weekend ideal from the template's own weekday share, the fairness scale from the seat count and cost curve. Nothing is hardcoded to this quarter, which is what let the same code run unchanged when the leads dropped two shifts from the template mid-week.</p>
+
+  <h3>Roles, after the solve</h3>
+  <p>The solver picks people, not seats. Seating is a second step because two experienced and two new RAs can always be arranged so that both walks and both desks are mixed (eight of the twenty-four orderings qualify), so the solver never has to reason about it and the second step can never fail. Within the valid orderings it picks whichever seats the most people at the desk they asked for, ties broken randomly with a seed so runs are reproducible.</p>
+
+  <p>The exported workbook carries a second tab beside the schedule: one row per RA showing what the solver was given (conflict days, blackout dates, ranks, weekend and desk preferences) next to what they got. A lead checking why someone landed on a Friday can answer it from that tab without a rerun.</p>
+
+  <h3>Reading the form without guessing</h3>
+  <p>The parser matches each field by a short keyword rather than the full question text, and prints what it matched so a mismatch is visible immediately rather than as empty availability three steps later. Availability is built by subtraction: every shift, minus weekday evenings on conflict days, minus every shift on a blackout date. Dates are read as <code>M/D</code> or <code>MM/DD</code> off the front of each entry, split on newlines and commas; anything without a leading date is reported, never inferred. RAs are matched to the roster by email, then exact full name, then a first name that matches exactly one roster entry, with a flag at every fallback and a stop if all fail.</p>
+  <p>A roster member with no submission also stops the run, by design: assuming they're free, or assuming they're not, both produce a plausible schedule built on someone the tool knows nothing about. What happens next is a lead's call, and it has to be an explicit one. The stop prints the chase list. If someone still hasn't answered when the schedule has to be built, the lead names them on the command line with the assumption to use (available for everything, available for nothing, or left off this quarter), and every later run repeats that assumption in its findings so it can't be forgotten. That override doesn't exist yet and is listed under open questions.</p>
+  <p>There is no natural-language processing anywhere. The parser handles every input shape that has been observed and refuses everything else, loudly. A language model would read "Oct. 17" correctly and would also turn "entire Thanksgiving break" into some set of dates, confidently, with no way to know which. For a hard constraint, a flagged unreadable date beats a confident wrong one, and 43 rows a quarter, pre-checked by a human, don't need a model.</p>
+
+  <h3>Checking its own work</h3>
+  <p>Two layers, deliberately independent. Before the solve, <code>preflight.py</code> counts eligible people against seats per shift and per rule block, so an infeasible quarter comes with a date attached instead of the solver's one-word <code>INFEASIBLE</code>. After the solve, <code>validate.py</code> re-derives every hard rule and every seating rule from the finished assignment, sharing no code with the solver or the seating step, so a bug in either shows up as a violation rather than hiding. On every test run so far it has found zero.</p>
+
+  <h3>Results on test data</h3>
+  <p>Real availability arrives when the fall form closes; these figures are from the real template with invented availability and preferences. Optimal solution in under ten seconds. Zero violations. Every RA within one shift of their tier target. Worst weekday/weekend imbalance one shift. Nobody with more than two shifts in a calendar week, down from four. Preference figures are not reported here because invented preferences are uniform where real ones cluster, and the number would not survive contact with the real form.</p>
+
+  <h2>3. What's next: version 2, the web version</h2>
+  <p>Version 1 solves the building step. Everything around it still runs the way it did: the form export is downloaded by hand, the schedule goes out as a spreadsheet, swaps go through a separate form and a script, and calendar files go stale the moment a swap is approved. Version 2 puts all of that behind one website. The solver doesn't change; the site wraps it.</p>
+
+  <h3>Who uses it</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Group</th><th>Permission level</th><th>What they do</th></tr></thead>
+      <tbody>
+        <tr><td>Duty leads, ADRLs, lead RAs</td><td>Admin</td><td>Import availability, review flags, build and publish the schedule, edit it by hand, approve swaps, change settings, read metrics</td></tr>
+        <tr><td>Every other RA</td><td>Member</td><td>See the whole schedule read-only, see their own shifts, request a one-for-one swap, subscribe to their calendar</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Sign-in is by Google account restricted to <code>ucsd.edu</code>, which UCSD runs on Google Workspace and which needs no campus integration. UCSD single sign-on is the upgrade if campus IT will provide it. Roles come from the roster: anyone on the admin list is an admin, everyone else on the roster is a member, anyone not on the roster can't sign in.</p>
+
+  <h3>What each person sees</h3>
+  <div class="cols">
+    <div>
+      <h3>Admin</h3>
+      <ul>
+        <li><strong>Before the build.</strong> Import the form export. The parser's findings on one screen: who hasn't submitted, who marked every weekday, dates it couldn't read, every concerns box. A chase list.</li>
+        <li><strong>Build.</strong> One button. Preflight counts first, then the solve, then the validator. Result shown as a calendar.</li>
+        <li><strong>Edit.</strong> Move a person by hand. The validator re-runs on every edit and shows what, if anything, it broke.</li>
+        <li><strong>Publish.</strong> Locks the schedule, generates every calendar feed, notifies RAs.</li>
+        <li><strong>Swaps queue.</strong> Pending swaps with a rule check already run. Clean swaps approve in one click; a swap that would break a rule shows the rule and asks first.</li>
+        <li><strong>Settings.</strong> Rule-block dates, tier loads, preference priority, which soft rules are on. Per quarter, current values shown.</li>
+        <li><strong>Metrics.</strong> Swaps per week. Shifts per person, weekday/weekend split, first-or-second-choice rate.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Member</h3>
+      <ul>
+        <li><strong>The schedule.</strong> The whole quarter as a calendar, read-only, with a filter to their own shifts.</li>
+        <li><strong>Request a swap.</strong> From a shift: pick the shift they're giving, pick the shift they're taking, name the other RA. That RA accepts or declines; a lead approves.</li>
+        <li><strong>My calendar.</strong> A subscribe link that updates itself when a swap is approved, plus a download for anyone who prefers to import.</li>
+        <li><strong>Everyone's calendar.</strong> One feed with every shift, for anyone who wants it.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>The swap workflow</h3>
+  <p>One-for-one trades only. Finding a partner stays where it happens today, in the GroupMe; the site records the trade once both people agree.</p>
+  <ol>
+    <li>RA A requests: give shift X, take shift Y from RA B.</li>
+    <li>RA B accepts or declines.</li>
+    <li>The site runs the validator on the schedule as it would be after the trade. If nothing breaks, the request sits in the queue marked clean. If something would break, it's marked with the rule.</li>
+    <li>A lead approves or rejects.</li>
+    <li>On approval: the schedule updates, both calendar feeds regenerate, both RAs get an email.</li>
+  </ol>
+  <p>Every swap is a record with its timestamps and who did what, so the schedule is the record of what happened rather than the plan. Last year's sheet had 355 swaps and no way to tell the plan from what actually happened.</p>
+
+  <h3>Data</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Entity</th><th>What it holds</th></tr></thead>
+      <tbody>
+        <tr><td>Quarter</td><td>Name, date range, rule-block dates, tier targets, which soft rules are on, published-or-not</td></tr>
+        <tr><td>Shift</td><td>Date, kind (weekday evening, morning, afternoon, weekend evening), seats, duty-round location</td></tr>
+        <tr><td>RA</td><td>Email, display name, tier, admin flag. Read from the roster spreadsheet at import; the spreadsheet stays the source</td></tr>
+        <tr><td>Availability</td><td>Per RA per quarter: conflict weekdays, blackout dates, weekday ranks, weekend day and time, desk. Imported from the form export</td></tr>
+        <tr><td>Assignment</td><td>Shift, RA, seat (front desk or game room, first or second walk). The schedule is the set of these</td></tr>
+        <tr><td>Swap</td><td>Requester, partner, shift given, shift taken, state (requested, accepted, approved, rejected), rule-check result, timestamps</td></tr>
+        <tr><td>Calendar token</td><td>Per RA: a random secret in their subscribe URL, revocable</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>The API, roughly</h3>
+  <pre><code>POST   /quarters                       create a quarter from a template upload
+POST   /quarters/{q}/availability      import a form export; returns the findings report
+POST   /quarters/{q}/build             preflight, solve, validate; returns schedule and metrics
+PATCH  /quarters/{q}/assignments/{id}  move one person; returns validator findings
+POST   /quarters/{q}/publish           lock, generate feeds, notify
+GET    /quarters/{q}/schedule          the full schedule (member and admin)
+POST   /swaps                          RA requests a trade
+POST   /swaps/{id}/accept              partner accepts
+POST   /swaps/{id}/approve             lead approves; applies the trade, regenerates feeds
+GET    /calendar/{token}.ics           one RA's feed
+GET    /calendar/all.ics               every shift
+GET    /quarters/{q}/metrics           the numbers</code></pre>
+  <p>Small on purpose. Every action a person can take is one endpoint, and the solver, validator, and exporter are the same Python functions version 1 already has, called from a request handler instead of a command line.</p>
+
+  <h3>The likely stack</h3>
+  <p>Nothing here is chosen yet. These are the pieces and the leading candidate for each, picked for the one constraint that outranks the others: <strong>the duty leads have to keep this running after Shivam graduates.</strong> Every choice below is the simplest thing that does the job.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Piece</th><th>Likely choice</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>Language</td><td>Python</td><td>The solver, parser, validator, and exporter already are. No reason to have two languages.</td></tr>
+        <tr><td>Web framework</td><td>FastAPI or Flask</td><td>Small, well known, one file to start. FastAPI gives typed request handling for free.</td></tr>
+        <tr><td>Pages</td><td>Server-rendered HTML with a little JavaScript (HTMX or plain)</td><td>No build step, no separate front-end project to maintain. A calendar view and a swap form don't need a framework.</td></tr>
+        <tr><td>Database</td><td>SQLite, one file</td><td>Forty-three users and a few hundred rows a quarter. One file to back up, one file to delete at year end. Nothing to administer.</td></tr>
+        <tr><td>Solver</td><td>OR-Tools CP-SAT, unchanged</td><td>Already built and tested.</td></tr>
+        <tr><td>Sign-in</td><td>Google sign-in, ucsd.edu only</td><td>Works today with no campus integration. UCSD SSO as the upgrade.</td></tr>
+        <tr><td>Email</td><td>A transactional mail service, or Gmail SMTP from a dedicated account</td><td>A few dozen messages a week at most.</td></tr>
+        <tr><td>Calendars</td><td>ICS files generated on the server, served at secret per-RA URLs</td><td>Every calendar app subscribes to a URL. Regenerate the file on any change and the subscription picks it up.</td></tr>
+        <tr><td>Hosting</td><td>A small hosting service's free tier, or a few dollars a month</td><td>Preference is free. A static-site host such as Google Sites can't run this: the solver and the swap workflow need a server.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>No language model anywhere, for the reason given under the parser: every task here is deterministic, and the same inputs should always produce the same schedule.</p>
+
+  <h3>Privacy and security</h3>
+  <p>The site holds names, UCSD emails, each RA's tier, their availability including the reasons people give for dates they can't work, and who is on duty when. That last item is the most sensitive: a published schedule says which building has which student at the desk on which night.</p>
+  <ul>
+    <li><strong>Who can see what.</strong> Sign-in required for everything. Members see the schedule and their own availability. Admins see everyone's availability and the concerns boxes. Nothing is public.</li>
+    <li><strong>Calendar feeds</strong> are the one thing outside sign-in, because calendar apps can't log in. Each RA's feed URL contains a long random token; the all-shifts feed too. Tokens can be regenerated, which invalidates the old URL.</li>
+    <li><strong>The roster stays a spreadsheet</strong> the leads maintain, imported at the start of the quarter. The site holds a copy of it for the quarter it needs.</li>
+    <li><strong>Retention.</strong> Availability, including free-text reasons, is deleted when the quarter ends. Schedules and swap records are kept for one year, then deleted. Backups are the SQLite file, encrypted, kept by the leads.</li>
+    <li><strong>Transport.</strong> HTTPS only, which every hosting service provides.</li>
+    <li><strong>No data in the code repository.</strong> The repository is the code and these documents. Real templates, exports, and schedules never enter it; the ignore rules block the file types.</li>
+  </ul>
+  <div class="note">
+    <p>Whether student duty data may live on an outside hosting service at all is a question for Residential Life and possibly campus IT, and it has to be answered before anything is deployed. If the answer is no, the fallback is version 1 as it stands, run on a lead's machine, with the swap and calendar features waiting on a campus host.</p>
+  </div>
+
+  <h3>Order of work</h3>
+  <p>Each step is useful on its own, and each depends on the previous one having earned trust.</p>
+  <ol>
+    <li><strong>Version 1 on a real quarter.</strong> Fall 2026. Shivam runs the command-line tool and hands the leads the draft; the leads read it, correct it, and publish it themselves. The tool is not yet something a lead runs unaided, and making it so is what step 4 is for. Nothing else until this holds up.</li>
+    <li><strong>Read-only site and calendars.</strong> The published schedule as a calendar page, per-RA feeds, the all-shifts feed. No swaps yet. This alone retires the "track your own swaps" problem once swaps also go through the site.</li>
+    <li><strong>Swaps.</strong> The request, accept, approve queue, with the rule check and the feed regeneration.</li>
+    <li><strong>The build in the browser.</strong> Import, flags, build, edit, publish. The command-line tool becomes the fallback.</li>
+    <li><strong>Settings and availability in the site.</strong> Leads change rules without code; the Google Form is replaced or kept as an import option.</li>
+  </ol>
+
+  <h2>4. Decisions, and why</h2>
+  <p>Every significant choice, with its reason, in the order it was made. Most were made by the project owner after seeing measurements; a few were reversed by later evidence and the reversal is recorded rather than the original erased.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Decision</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>Constraint solver over a hand-written greedy loop</td><td>The hard rules (availability, composition, pairing, back-to-back) are what a constraint solver enforces natively, in less code than a greedy loop that has to backtrack.</td></tr>
+        <tr><td>The whole quarter in one solve, rules gated by date</td><td>The pairing block forces experienced RAs front-heavy. Only balancing the whole quarter at once nets everyone out to fair totals.</td></tr>
+        <tr><td>Fairness targets are soft goals, never hard caps</td><td>A hard cap can declare the whole quarter impossible over one extra shift. Availability is the only unbreakable input.</td></tr>
+        <tr><td>Minimax fairness</td><td>RAs compare counts with each other. Protecting the worst-off person is what "fair" feels like; several people slightly off beats one person slammed.</td></tr>
+        <tr><td>Every new RA gets at least two pairing-period shifts</td><td>Quarter-total fairness alone left three new RAs with zero pairing shifts and perfect counts. The pairing period exists to train them.</td></tr>
+        <tr><td>Pairing trains the desk as well as the walk</td><td>Only the walk pairs were constrained at first; ten of twenty-eight pairing shifts had two new RAs alone at a desk all evening. Both are training.</td></tr>
+        <tr><td>Primary and Secondary are the 7:30 and 9:30 walks, not seniority</td><td>An early version made the experienced RA always Primary. That was a misreading; the labels are time slots and their order carries no meaning.</td></tr>
+        <tr><td>The solver picks people; seating is a separate step</td><td>Two experienced plus two new can always be seated legally, so the solver never has to model desks, and seating can never fail.</td></tr>
+        <tr><td>Preferences are a strict tiebreaker under fairness</td><td>"Solve for fairness." Implemented exactly: the fairness terms are scaled past the worst possible total preference cost, derived from the grid.</td></tr>
+        <tr><td>Preference priority: weekday, then weekend day, then weekend time, then desk</td><td>The owner's ranking of what he'd want as an RA. Right day with the wrong time beats wrong day with the right time.</td></tr>
+        <tr><td>Desk preference is never priced in the solver</td><td>Pricing desk in the solver would steer people who want the game room away from morning shifts, which have none, and so distort their day and time. Someone asking for the game room and a morning wants something that doesn't exist. Leaving desk out of the model means day and time win by construction.</td></tr>
+        <tr><td>Weekday/weekend balance added (reversing "total count only")</td><td>The original reason, that an RA who can't do weekdays legitimately ends up weekend-heavy, still holds and is why the term is soft. Measured cost on the real grid: none.</td></tr>
+        <tr><td>One shift per person per week, softly</td><td>The leads' rule that nobody should be done by week four. It also delivers two more of their habits wherever it holds. Cost: one preference point.</td></tr>
+        <tr><td>Targets derived from the inputs every run</td><td>So a changed template can't silently invalidate them. Proven useful the week the template changed.</td></tr>
+        <tr><td>No natural-language processing in the parser</td><td>A regex that fails says so; a model guesses. A flagged unreadable date beats a confident wrong one.</td></tr>
+        <tr><td>Join on email, then full name, then unique first name, flagging each step</td><td>Email alone was the plan until two of the first seven real respondents had a different ucsd.edu address from the roster. People have more than one.</td></tr>
+        <tr><td>Non-submitters stop the run</td><td>Treating them as fully available or fully unavailable both produce a plausible schedule built on someone the tool knows nothing about.</td></tr>
+        <tr><td>Synthetic runs stamp SYNTHETIC into the filename</td><td>An invented schedule is correct in every visible way. The filename was the only thing between it and someone's inbox.</td></tr>
+        <tr><td>The validator shares no code with the solver</td><td>If it reused the solver's logic, both would carry the same bug and both would report success.</td></tr>
+        <tr><td>Solver first, website second</td><td>A website wrapping a solver nobody trusts is a website nobody uses. The order of work above follows from this.</td></tr>
+        <tr><td>One-for-one swaps only, lead approves all</td><td>What the leads do today. Finding a partner stays social; the site records the trade and checks the rules.</td></tr>
+        <tr><td>Roster stays a spreadsheet</td><td>The leads already maintain it. The site imports it rather than becoming the place it's edited.</td></tr>
+        <tr><td>Simplest possible stack</td><td>The people running this after Shivam graduates are RAs, not engineers. One language, one file database, no build step.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>5. Open questions</h2>
+  <ul>
+    <li>May student duty data be hosted outside campus? Who decides, and what would they need to see?</li>
+    <li>Is UCSD single sign-on available to a student project, or is Google sign-in the permanent answer?</li>
+    <li>Is there a hosting budget, or a campus-provided host?</li>
+    <li>Which settings do the leads want to change each quarter, and which should stay fixed?</li>
+    <li>How lopsided are real weekday rankings? That decides whether the preference cost curve needs tuning, and it can't be known until the form closes.</li>
+    <li>Should cross-quarter carryover (one short last quarter, one extra this quarter) be a rule the tool enforces, and what's the record it reads it from?</li>
+    <li>What is the explicit override for a roster member who never submits: available for everything, for nothing, or left off the quarter? It should be a named, flagged choice on the command line, and it isn't built yet.</li>
+    <li>Succession. Who holds the hosting account, the Google sign-in credentials, the mail service, and the ability to regenerate calendar tokens after Shivam graduates? Student-built infrastructure usually dies at the account handoff, not in the code. That needs an owner with a UCSD role, not a person.</li>
+  </ul>
+
+  <p class="colophon">Version 1 designed and built by Shivam Singhal, Seventh College RA, summer 2026. Code in a private repository, <code>github.com/ssinghal732/ra-scheduler</code>. Version 2 is designed here and not yet started.</p>
+
+</div>
+</body>
+</html>
