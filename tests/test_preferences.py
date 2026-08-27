@@ -222,3 +222,49 @@ def test_balance_is_soft_and_never_blocks_a_weekend_only_RA():
     res = solve(shifts, data, time_limit_s=10)
     assert res.feasible, f"weekend-only RA made it infeasible: {res.status}"
     assert res.weekday_counts["P0"] == 0, "cannot work weekdays, must not be given any"
+
+
+# --------------------------------------------------------------------------- #
+# Spread across the quarter (one of the leads' unwritten rules)
+# --------------------------------------------------------------------------- #
+
+def test_week_index_is_monday_to_sunday():
+    from ra_scheduler.solver import week_of
+    first = date(2026, 9, 10)                 # a Thursday
+    assert week_of(date(2026, 9, 10), first) == 0
+    assert week_of(date(2026, 9, 13), first) == 0   # the Sunday of that same week
+    assert week_of(date(2026, 9, 14), first) == 1   # next Monday
+    assert week_of(date(2026, 9, 20), first) == 1
+
+
+def test_spread_prefers_one_shift_per_week_when_it_can():
+    """Two people, two weeks, two 2-seat shifts per week. Without the spread
+    term any split is equally fair; with it, each person works once a week."""
+    from ra_scheduler.solver import solve
+    shifts = [
+        _shift("Morning", d=date(2026, 11, 2), dow="Monday", sid=0),    # week 0
+        _shift("Morning", d=date(2026, 11, 3), dow="Tuesday", sid=1),   # week 0
+        _shift("Morning", d=date(2026, 11, 9), dow="Monday", sid=2),    # week 1
+        _shift("Morning", d=date(2026, 11, 10), dow="Tuesday", sid=3),  # week 1
+    ]
+    roster = [RA(f"P{i}", f"P{i}", "new") for i in range(4)]
+    avail = {ra.ra_id: {s.key for s in shifts} for ra in roster}
+    res = solve(shifts, AvailabilityData(roster=roster, available=avail), time_limit_s=10)
+    assert res.feasible
+    assert res.week_excess == 0, "everyone can be spread, so nobody should double up"
+    assert res.busiest_week == 1
+
+
+def test_spread_is_soft_and_yields_when_it_must():
+    """One person is the only one free in week 0 for two shifts. They must
+    take both; the term reports it rather than making the solve impossible."""
+    from ra_scheduler.solver import solve
+    shifts = [
+        _shift("Morning", d=date(2026, 11, 2), dow="Monday", sid=0),
+        _shift("Morning", d=date(2026, 11, 3), dow="Tuesday", sid=1),
+    ]
+    roster = [RA("A", "A", "new"), RA("B", "B", "new"), RA("C", "C", "new")]
+    avail = {"A": {s.key for s in shifts}, "B": {shifts[0].key}, "C": {shifts[0].key}}
+    res = solve(shifts, AvailabilityData(roster=roster, available=avail), time_limit_s=10)
+    assert res.feasible, res.status
+    assert res.week_excess >= 1

@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RA Duty Scheduler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  :root {
+    --paper:       #f3f6f7;
+    --surface:     #ffffff;
+    --ink:         #101820;
+    --ink-soft:    #3f4f5b;
+    --muted:       #697b88;
+    --rule:        #d8e1e7;
+    --rule-soft:   #e7edf1;
+    --accent:      #1f4e79;
+    --accent-on:   #ffffff;
+    --accent-wash: #e9f0f6;
+    --amber:       #8f5522;
+    --amber-wash:  #fbf3ea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:       #0d1317;
+      --surface:     #141d23;
+      --ink:         #e7eef3;
+      --ink-soft:    #b6c4ce;
+      --muted:       #8496a2;
+      --rule:        #25333c;
+      --rule-soft:   #1c272e;
+      --accent:      #7fb5e2;
+      --accent-on:   #0d1317;
+      --accent-wash: #15242f;
+      --amber:       #d59b6b;
+      --amber-wash:  #1f1913;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:       #0d1317;
+    --surface:     #141d23;
+    --ink:         #e7eef3;
+    --ink-soft:    #b6c4ce;
+    --muted:       #8496a2;
+    --rule:        #25333c;
+    --rule-soft:   #1c272e;
+    --accent:      #7fb5e2;
+    --accent-on:   #0d1317;
+    --accent-wash: #15242f;
+    --amber:       #d59b6b;
+    --amber-wash:  #1f1913;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+    font-size: 17px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 18px;
+  }
+  h1 {
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(2rem, 5vw, 2.8rem);
+    line-height: 1.1;
+    letter-spacing: -.025em;
+    margin: 0 0 14px;
+  }
+  .standfirst {
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 1.08rem;
+    margin: 0 0 40px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--rule);
+  }
+  h2 {
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 1.42rem;
+    letter-spacing: -.015em;
+    line-height: 1.25;
+    margin: 52px 0 14px;
+  }
+  p { margin: 0 0 18px; max-width: 68ch; }
+  em { font-style: italic; }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .86em;
+    background: var(--accent-wash);
+    padding: .1em .38em;
+    border-radius: 2px;
+  }
+
+  .lede {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    padding: 20px 24px;
+    margin: 0 0 8px;
+  }
+  .lede p:last-child { margin-bottom: 0; }
+
+  .tablewrap { overflow-x: auto; margin: 22px 0 26px; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 14.5px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+  }
+  th {
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--accent-on);
+    background: var(--accent);
+    border-bottom: 0;
+  }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child { color: var(--ink-soft); white-space: nowrap; }
+
+  .note {
+    background: var(--amber-wash);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--amber);
+    border-radius: 3px;
+    padding: 16px 20px;
+    margin: 22px 0;
+  }
+  .note p:last-child { margin-bottom: 0; }
+
+  h3 {
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 1.05rem;
+    margin: 26px 0 8px;
+  }
+  ul { margin: 0 0 18px; padding-left: 20px; max-width: 68ch; }
+  ol.steps { margin: 0 0 22px; padding-left: 0; max-width: 68ch; list-style: none; counter-reset: step; }
+  ol.steps li {
+    position: relative;
+    padding-left: 44px;
+    margin-bottom: 14px;
+    counter-increment: step;
+  }
+  ol.steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0; top: .15em;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-on);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    font-weight: 500;
+    display: flex; align-items: center; justify-content: center;
+  }
+  li { margin-bottom: 8px; }
+  li strong { font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 600; }
+  .cols { display: grid; gap: 8px 36px; }
+  @media (min-width: 720px) { .cols { grid-template-columns: 1fr 1fr; } }
+  .cols h3 { margin-top: 14px; }
+  dl { margin: 0 0 18px; }
+  dt {
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-weight: 600;
+    margin-top: 14px;
+  }
+  dd { margin: 4px 0 0; max-width: 68ch; }
+
+  .colophon {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-style: italic;
+    color: var(--muted);
+    font-size: .95rem;
+  }
+  @media print {
+    body { background: #fff; color: #000; font-size: 11.5pt; }
+    .page { padding: 0; max-width: none; }
+    h2 { break-after: avoid; }
+    .lede, .note, table { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <p class="eyebrow">Seventh College · Residential Life</p>
+  <h1>RA Duty Scheduler</h1>
+  <p class="standfirst">For the ADRLs and duty leads. What this is, why it exists, and what changes for you.</p>
+
+  <div class="lede">
+    <p>Every quarter, two or three RAs spend an evening or two turning the duty template and the availability form into a finished schedule. This tool does that step in a few seconds. You give it the same two inputs you already have, it applies the written rules you already follow, and it hands back the schedule in the same format you already use. You still check it, publish it, and handle everything that comes after.</p>
+    <p>It doesn't change the rules. It doesn't talk to RAs. It doesn't do swaps yet. It removes the part of the job that was arithmetic.</p>
+  </div>
+
+  <h2>How the schedule gets made today</h2>
+  <p>This is the process as last year's duty leads described it, in their words where possible.</p>
+  <ol class="steps">
+    <li><strong>Collect the form.</strong> The availability form feeds a hidden tab in the duty spreadsheet. A bit of Excel code sorts everyone's weekday preferences by day. Weekends have nothing automated, so those get sorted by hand.</li>
+    <li><strong>Place people, day by day.</strong> Returners go on their preferred day first, marked red where they can work a day but didn't ask for it. First-years go on their first-choice day only. Whoever's left gets randomized in. Each block of names is randomized three times, and again as more names get added.</li>
+    <li><strong>Keep the counts even.</strong> A running tally per person. Returners get one fewer shift than new RAs. Getting the arithmetic to close is its own job; one of them wrote it out as <code>9x + 10y = 43</code>, and that line is still in the sheet. Across quarters, whoever ended up one short last time gets one extra this time.</li>
+    <li><strong>Apply the rules that live in people's heads.</strong> Nobody gets two weekday shifts in the same week. Try not to give someone a weekday and a weekend in the same week. No back-to-back shifts on a weekend day. Spread shifts across the quarter so nobody is finished by week four while someone else only works the last three weeks.</li>
+    <li><strong>Fight the hard weeks.</strong> Finals week and the days either side of a break are the worst of it, which is why people volunteer for the post-break dates. Spring is hardest, because so many people are graduating.</li>
+    <li><strong>Send the draft, then fix it.</strong> Four to five hours to this point, minimum. The changes after RAs see the draft add a few more, depending on how tight availability was that quarter.</li>
+    <li><strong>Handle swaps for the rest of the quarter.</strong> Swaps arrive through a Google Form. Each needs both halves submitted, then a script matches the pairs and rewrites the cells in yellow. Someone runs the script and checks the yellow. Calendar files went out to RAs, but they don't update when a swap goes through, so everyone was told to track their own.</li>
+  </ol>
+
+  <h2>What the tool does instead</h2>
+  <p>The same job, in the same order.</p>
+  <ol class="steps">
+    <li><strong>Read the form and the roster.</strong> Every response, every rank, every date someone can't work, matched to the roster by email.</li>
+    <li><strong>Flag what looks off, before anything gets built.</strong> Who hasn't submitted. Who marked every weekday as a conflict. Who listed more than ten dates they can't work. Any date it couldn't read. Every "additional concerns" answer, printed in full, because those boxes are where people write the things a form can't capture.</li>
+    <li><strong>Apply the written rules.</strong> Which week is returners only. Which weeks pair an experienced RA with a new one on both the walk and the desk. How many shifts each tier carries. No back-to-back shifts. Nobody on a day they said they can't work.</li>
+    <li><strong>Pick the fairest schedule, then the most-preferred one.</strong> It looks at every legal way to fill the quarter. Among them it keeps shift counts most even, pulls everyone's weekday and weekend load toward an even split, spreads each person's shifts across the quarter, and, only among schedules that are equally fair, gives the most people the days and times they asked for.</li>
+    <li><strong>Write it into the template.</strong> Same columns, same layout, Exceptions column filled in.</li>
+    <li><strong>Check its own work.</strong> A separate checker reads the whole schedule against every rule and reports anything wrong. On every test run so far it has found zero.</li>
+    <li><strong>Then you read it.</strong> The draft exists in under ten seconds. Changes mean rerunning it, not redoing it.</li>
+  </ol>
+
+  <h2>Side by side</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th></th><th>By hand</th><th>With the tool</th></tr></thead>
+      <tbody>
+        <tr><td>Sorting preferences</td><td>Excel code for weekdays, by hand for weekends</td><td>Read straight from the form</td></tr>
+        <tr><td>Placing people</td><td>Day by day, randomized three times per block</td><td>Every combination considered at once</td></tr>
+        <tr><td>Keeping counts even</td><td>Running tally, adjusted by hand</td><td>Built into how it chooses</td></tr>
+        <tr><td>Weekday and weekend mix</td><td>Eyeballed</td><td>Pulled toward an even split, as far as availability allows</td></tr>
+        <tr><td>Rules</td><td>Remembered</td><td>Written down and applied every time</td></tr>
+        <tr><td>Checking the result</td><td>Reread the sheet</td><td>Automatic check, then you reread the sheet</td></tr>
+        <tr><td>Time to a draft</td><td>Four to five hours</td><td>Under ten seconds</td></tr>
+        <tr><td>Changes after the draft</td><td>A few more hours</td><td>Rerun it</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>What stays with you</h2>
+  <dl>
+    <dt>The rules</dt>
+    <dd>The tool follows whatever rules it's given; it doesn't invent or relax them. If a rule changes, it gets changed in one place and every future run follows it.</dd>
+    <dt>The final say</dt>
+    <dd>Nothing gets published until a duty lead has read the rows. The automatic check reads the whole schedule against every rule it knows. It can't check the ones it doesn't. You know the rest.</dd>
+    <dt>The conversations</dt>
+    <dd>Emergency accommodations, the RA whose situation changed after the form closed, the graduating senior who needs finals week light. Those are judgment calls and they're yours.</dd>
+    <dt>Swaps</dt>
+    <dd>For now, swaps still go through the Google Form and the script. See “Where this is going.”</dd>
+  </dl>
+
+  <h2>Rules it follows, and rules it doesn't yet</h2>
+  <p>It enforces: returners only in the opening week, experienced-plus-new pairs on every walk and every desk during the pairing weeks, per-tier shift counts (new RAs carry the most, returners one fewer, lead RAs half), no back-to-back weekend shifts, and availability from the form.</p>
+  <p>It leans toward: one shift per person per week, so nobody is finished by week four while someone else only works the last few weeks; then everyone's first or second choice weekday, the weekend day and time they asked for, and their preferred desk, in that order, and never at the cost of fairness.</p>
+  <div class="note">
+    <p>Two of the habits the leads described, one weekday shift per person per week and not pairing a weekday with a weekend in the same week, aren't rules of their own yet. The one-shift-per-week lean covers them wherever it holds, which on test data is nearly everywhere. It also doesn't carry balances across quarters or give graduating RAs a lighter finals week. Those can be added; they haven't been because nobody wrote them down until now.</p>
+  </div>
+
+  <h2>Where this is going</h2>
+  <p>There's no website yet. The inputs are still the Google Form and the spreadsheet template, the output is a spreadsheet, swaps still go through the swap form and the script, and calendar files still don't update when a swap happens. The plan is to put all of that in one place, and the shape of it comes from what you and the RAs already do.</p>
+
+  <div class="cols">
+    <div>
+      <h3>For RAs</h3>
+      <ul>
+        <li><strong>My shifts, as a calendar.</strong> Only theirs, the whole quarter, on a phone. Not a row in a spreadsheet.</li>
+        <li><strong>Swap from the shift itself.</strong> Pick the shift, pick who you're swapping with, send it. The other person gets it to accept.</li>
+        <li><strong>A calendar that stays right.</strong> Subscribe once. When a swap is approved the calendar updates on its own. No more tracking your own swaps.</li>
+        <li><strong>Availability in the same place.</strong> Same questions as the form, but the tool reads the answers directly, so there's nothing to misread.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>For duty leads and ADRLs</h3>
+      <ul>
+        <li><strong>The flags before the build.</strong> Who hasn't submitted, who marked every weekday, every concerns box, on one screen with the chase list ready.</li>
+        <li><strong>Build, look, rebuild.</strong> See the schedule as a calendar, spot what you don't like, adjust a rule or a person, run it again. Seconds each time.</li>
+        <li><strong>Swaps as a queue.</strong> RA requests, the other RA accepts, a lead approves, the schedule and both calendars update. Three states, always visible.</li>
+        <li><strong>The numbers.</strong> Shifts per person, weekday and weekend split, how many people got a first or second choice, swaps by week. The things you work out by hand now, or don't have.</li>
+        <li><strong>Settings you can change yourself.</strong> The returners-only dates, the pairing weeks, the tier targets, which rules are on. Per quarter, without touching code.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Things to decide together</h3>
+  <p>Some of this needs your answer before it gets built, and the answers will come from how you actually run duty rather than from guessing.</p>
+  <ul>
+    <li>Which settings do you want to control each quarter, and which should stay fixed?</li>
+    <li>Should availability be collected in the tool, or stay in the Google Form and be imported?</li>
+    <li>What should an RA see about other people's schedules: the whole grid, or only their own shifts plus who they're on with?</li>
+    <li>Should every swap need a lead's approval, or only swaps that would break a rule?</li>
+    <li>Which of the unwritten rules should the tool enforce, and which should stay judgment calls?</li>
+  </ul>
+  <p>Order matters. This version earns your trust on a real quarter first. The web version comes after.</p>
+
+  <h2>What it has done so far</h2>
+  <p>On this fall's template with test availability data: the whole quarter filled in under ten seconds, zero rule violations on the independent check, lead RAs at about half the load of a new RA, returners one shift below, and no two people in the same tier more than one shift apart. Nobody with more than two shifts in any week. Those come from seat arithmetic and the rules, and will hold on real data.</p>
+  <p>How well it honours preferences and how evenly it splits weekdays and weekends depend on what people actually ask for, and test preferences are random where real ones cluster. Those numbers get reported after the first real run, once the fall form closes.</p>
+
+  <p class="colophon">Built by a Seventh College RA over summer 2026, with the rules supplied by the ADRL and last year's duty leads. Questions about the tool go to Shivam. Questions about the schedule go to the duty leads.</p>
+
+</div>
+</body>
+</html>

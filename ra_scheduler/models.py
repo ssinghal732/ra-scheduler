@@ -58,6 +58,13 @@ STAFFING: dict[str, tuple[int, int]] = {
     "Evening (Weekend)": (2, 2),
 }
 
+# One of the leads' unwritten rules (2026-08-27): spread each person's shifts
+# across the quarter. Nobody should be done by week four while someone else
+# only works the last few weeks. Encoded as a SOFT cap on shifts per person per
+# calendar week (Monday to Sunday). Soft because the pairing block front-loads
+# experienced RAs by rule, so a hard cap would make some quarters impossible.
+MAX_SHIFTS_PER_WEEK = 1
+
 # consecutive same-day weekend shifts (hard rule H3). Morning->Evening is fine.
 BACK_TO_BACK_PAIRS = (("Morning", "Afternoon"), ("Afternoon", "Evening (Weekend)"))
 

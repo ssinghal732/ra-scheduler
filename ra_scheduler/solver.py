@@ -8,8 +8,9 @@ Soft objective, in priority order (all soft per F1 - only availability blocks):
   P1 training floor: every new RA >= TRAIN_FLOOR pairing-period shifts (Q1)
   P2 minimax fairness: minimize the largest |count - target| (F2)
   P3 weekday/weekend balance: everyone's mix near the grid's own ratio
-  P4 spread deviations; heavier weight pulls LRAs to their target (F3)
-  P5 preferences: weekday rank, weekend day, weekend time
+  P4 spread across the quarter: at most one shift per person per week, softly
+  P5 spread deviations; heavier weight pulls LRAs to their target (F3)
+  P6 preferences: weekday rank, weekend day, weekend time
 
 P4 is a TIEBREAKER and nothing more. Shivam's call 2026-08-26: solve for
 fairness. The fairness terms are scaled by more than the worst possible total
@@ -28,6 +29,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from collections import defaultdict
+from datetime import date, timedelta
 
 from ortools.sat.python import cp_model
 
@@ -36,6 +38,7 @@ from .models import (
     BLOCK_PAIRING,
     BLOCK_RETURNERS_ONLY,
     MAX_RANK_COST,
+    MAX_SHIFTS_PER_WEEK,
     MAX_WEEKEND_COST,
     TIER_LRA,
     TIER_NEW,
@@ -48,6 +51,13 @@ from .models import (
 TRAIN_FLOOR = 2                     # Q1: minimum pairing-period shifts per new RA
 W_TRAIN, W_MAXDEV, W_MAXIMB = 5000, 1000, 100   # P1 > P2 > P3
 W_IMBSUM = 1                        # spread of the weekday/weekend mix
+W_WEEK = 3                          # each shift beyond MAX_SHIFTS_PER_WEEK in one week
+
+
+def week_of(d: date, first: date) -> int:
+    """Calendar week index, Monday to Sunday, counted from the quarter's first week."""
+    first_monday = first - timedelta(days=first.weekday())
+    return (d - first_monday).days // 7
 DEV_WEIGHT = {TIER_LRA: 3}          # F3: stronger pull to target for LRAs (default 1)
 
 
@@ -95,6 +105,8 @@ class SolveResult:
     max_imbalance: int = 0                # worst weekday/weekend mix, shifts from ideal
     weekday_counts: dict[str, int] = field(default_factory=dict)
     ideal_weekday: dict[str, int] = field(default_factory=dict)   # tier -> ideal
+    week_excess: int = 0                  # shifts beyond one-per-week, summed over everyone
+    busiest_week: int = 0                 # most shifts any one person has in one week
 
     @property
     def feasible(self) -> bool:
@@ -174,6 +186,26 @@ def solve(
         m.Add(imb <= max_imb)
         wk_vars[ra.ra_id], imb_vars[ra.ra_id] = wc, imb
 
+    # P4: spread across the quarter (soft). One of the leads' unwritten rules:
+    # nobody done by week four while someone else only works the last few weeks.
+    first_date = min(s.date for s in shifts)
+    weeks: dict[int, list[int]] = defaultdict(list)
+    for s in shifts:
+        weeks[week_of(s.date, first_date)].append(s.sid)
+    excess_vars = []
+    week_count_vars = []
+    for ra in data.roster:
+        for w, sids in weeks.items():
+            vs = [x[(ra.ra_id, sid)] for sid in sids if (ra.ra_id, sid) in x]
+            if len(vs) <= MAX_SHIFTS_PER_WEEK:
+                continue                      # cannot exceed the cap this week anyway
+            wc = m.NewIntVar(0, len(vs), f"week_{ra.ra_id}_{w}")
+            m.Add(wc == sum(vs))
+            ex = m.NewIntVar(0, len(vs), f"weekexcess_{ra.ra_id}_{w}")
+            m.Add(ex >= wc - MAX_SHIFTS_PER_WEEK)
+            excess_vars.append(ex)
+            week_count_vars.append(wc)
+
     # P1: training floor (soft)
     shortfall_vars = {}
     for ra in data.roster:
@@ -203,6 +235,7 @@ def solve(
             + W_MAXIMB * max_imb
             + sum(DEV_WEIGHT.get(tier[rid], 1) * d for rid, d in dev_vars.items())
             + W_IMBSUM * sum(imb_vars.values())
+            + W_WEEK * sum(excess_vars)
         )
         + sum(pref_terms)
     )
@@ -235,4 +268,6 @@ def solve(
         max_imbalance=sv.Value(max_imb),
         weekday_counts={rid: sv.Value(w) for rid, w in wk_vars.items()},
         ideal_weekday=ideal_weekday,
+        week_excess=sum(sv.Value(e) for e in excess_vars),
+        busiest_week=max((sv.Value(wc) for wc in week_count_vars), default=0),
     )

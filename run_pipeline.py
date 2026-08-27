@@ -106,6 +106,9 @@ def main() -> int:
         print(f"[balance]   {tname:9s} ideal {want} weekday / "
               f"{result.targets[tname] - want} weekend")
 
+    print(f"[spread]    {result.week_excess} shift(s) beyond one-per-person-per-week; "
+          f"busiest anyone gets in a single week: {result.busiest_week}")
+
     by_tier = defaultdict(list)
     for ra in data.roster:
         by_tier[ra.tier].append(result.counts[ra.ra_id])
