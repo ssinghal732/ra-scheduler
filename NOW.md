@@ -44,10 +44,11 @@ Built end to end and proven on synthetic availability in one day, 2026-08-24. Fo
 
 ## Open questions
 
-- **Does the supervising ADRL expect to operate the tool themselves?** They probably do, per Shivam. That answer decides whether a v2 UI ever gets built. Parked until the solver is trusted on real data.
+None that block the real run. Every design decision v1 needs has been made.
 
-- **How messy is the free-text availability in practice?** Partly answered by the 25-26 replay: of 42 respondents, about 5 wrote a hard constraint with no date in it ("entire thanksgiving break", "I usually go home every weekend"). Shivam's hand-check before the parser runs is the mitigation.
-- **Real experienced availability in the returners-only week.** 32 seats over 17 experienced is comfortable only if they are actually available Sept 8-13. Training runs through Sept 11 so they are on campus, but availability is not attendance.
+- **Does the supervising ADRL expect to operate the tool themselves?** Decides whether a v2 UI gets built. Not a v1 question; parked until the solver is trusted on real data.
+- **Real experienced availability in the returners-only week.** 24 seats over 17 experienced RAs (the grid changed 08-26; it was 32). Only the data answers this. Friday's `[preflight]` line for `returners_only` is where to look.
+- **How lopsided are the real weekday rankings?** Decides whether task #4's cost curve needs tuning. Synthetic rankings spread nearly evenly; real ones may not. Measure after the first clean run, change nothing before.
 
 ## Known issues, accepted
 
