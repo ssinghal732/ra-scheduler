@@ -4,7 +4,17 @@
 
 RA Scheduler: fills the Seventh College quarterly duty schedule (440 seats, 136 shifts, 43 RAs) from the duty leads' grid plus the availability form, honoring the returners-only week, four weeks of experienced+new walk pairs, and per-tier loads. Spec at `../ra-scheduler-v1-spec.md`. Project brief in [CLAUDE.md](CLAUDE.md).
 
-Built end to end and proven on synthetic availability in one day, 2026-08-24. Form closes 2026-08-27 at 11:59 pm, so a complete response set exists 2026-08-28.
+Built end to end 2026-08-24, extended through 2026-08-26 (preferences, balance, parser, all verified on real partial data). Form closes 2026-08-27 at 11:59 pm; complete response set exists 2026-08-28. Product docs start 2026-08-27.
+
+## Tomorrow, 2026-08-27 (set by Shivam the night before)
+
+Two threads run in parallel. The real data arrives during the day.
+
+**Thread 1, the real run.** The form closes 08-27 at 11:59 pm, so a complete set exists Friday morning; partials are useful all day. Steps, in order: export the response sheet, run the command in the README, read the `[parse]` STOPs (the chase list, by name and tier) and READs (the concerns boxes to hand-encode), fix what needs fixing, run again. When it solves: `[preflight]` returners-only first (17 experienced against 24 seats with real availability), then `[balance]`, then `[prefs]`. Then open the xlsx and read rows. Two off-roster respondents now join by name with a FLAG; fix the roster afterwards, not before.
+
+**Thread 2, the three product docs.** AiCC task #5. Full headstart below under "The three product docs". Order that works: vision doc first (no dependencies, and writing it in plain English settles what the thing is), then the five forks, then the technical doc and the design brief together. The design brief goes to Claude Design, which produces a presentation; CC's job is the direction discussion beforehand, not the visuals.
+
+**Standing answer to keep handy:** no LLM, no NLP. The parser handles every observed shape and flags the rest. A flagged unreadable date beats a confident wrong one. That sentence goes in the technical doc.
 
 ## Active
 
@@ -17,6 +27,8 @@ Built end to end and proven on synthetic availability in one day, 2026-08-24. Fo
 **Full pipeline verified against the REAL grid (2026-08-24).** `ortools` 9.15.6755 and `openpyxl` 3.1.5 installed into `(base)`. `grid.py` reads `~/Downloads/26-27 RA Duty Schedule.xlsx` with no errors and every documented number matches: 138 shifts, 448 seats, 4 holiday rows, 86 duty dates, blocks at 6/32, 28/144, 52/272, holidays Nov 11/17/26/27. Full run on it: OPTIMAL in under 30s, 0 violations, max deviation 1, LRA all 5. Rules checked by reading rows back out of the output rather than trusting the validator: 0 new RAs in the returners-only week, 28 of 28 pairing-period evening shifts with both walk pairs mixed, all 4 holiday rows preserved. Every module is now exercised against real input except availability.
 
 **Pairing-period training rule corrected (2026-08-26).** Only the walk pairs had been constrained to 1 experienced + 1 new. Shivam asked whether the desk pairs were checked too; they were not, and 10 of 28 pairing shifts had two new RAs staffing a desk together for the whole evening. Both the walk and the desk shift are training, so all four pairings are now mixed, verified independently in `validate.py`. 56 of 56 on both.
+
+**The join is a fallback chain now (2026-08-26, `592367f`).** Email, then exact full name, then a first name matching exactly one roster entry; FLAG at every fallback, STOP if all fail or a first name is ambiguous. Two of the first seven real respondents had a different ucsd.edu address from the roster (people have more than one), and both now join with a flag saying the roster email is stale. Shivam set the chain after asking why everything hinged on email.
 
 **The parser is built and verified on real data (2026-08-26, `ccbbf80`).** `parse_form.py` reads the Google Form export and the roster into the same `AvailabilityData` that `synthetic.py` produces. Built against the first 7 real responses: every column matched, 5 of 7 joined to the roster, every availability key it produced matches a real shift. Three-tier findings: STOP halts before the solver (roster member with no submission, all five weekdays conflicted, missing column), FLAG prints and continues (duplicates, >10 blackouts, unreadable dates, off-roster respondent, repeated ranks), READ prints every non-trivial concerns box. Wired in as `--roster` and `--availability`; omit both and the run stays synthetic and stamped.
 

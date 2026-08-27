@@ -51,8 +51,10 @@ are the free-text concerns boxes, printed in full for a human to read before sol
 
 ## Decisions encoded in the parser
 
-- **Key on ucsd email, never on names.** Replaying last year, only 4 of 45 names
-  matched exactly between the form and the schedule.
+- **Join on email, then exact full name, then a first name matching exactly one
+  roster entry.** Every fallback is flagged; if all fail the run stops. People turned
+  out to have more than one ucsd.edu address, so email alone was not enough. Name
+  matching is exact after trimming, never fuzzy.
 - **A blackout date is `M/D` or `MM/DD` read off the front of each entry**, entries
   split on newlines and commas. Anything with no leading date is reported, never
   guessed at.
@@ -60,7 +62,9 @@ are the free-text concerns boxes, printed in full for a human to read before sol
 - **Duplicate submissions: latest timestamp wins**, flagged.
 - **A roster member who has not submitted stops the run.** So does anyone who marked
   all five weekdays as class conflicts.
-- **No NLP.** 43 rows a quarter, pre-checked by a human. A regex that fails says so.
+- **No NLP, no LLM.** The parser handles every input shape that has been observed and
+  flags everything else for a human. A flagged unreadable date beats a confident
+  wrong one, and 43 rows a quarter do not need a model.
 
 ## Status (2026-08-26)
 
@@ -72,8 +76,12 @@ RAs on their ideal weekday/weekend mix, 99% of weekday shifts on a first or seco
 choice day.
 
 The parser has been run on the first 7 real responses: every column matched, every
-availability key it produced matches a real shift. The real run happens once the form
-closes and everyone has submitted.
+availability key it produced matches a real shift, and two respondents whose email
+differed from the roster joined by name with a flag. The real run happens once the
+form closes and everyone has submitted.
+
+Next: three product documents (vision, technical design, and a design brief), and
+then a v2 with a UI for the duty leads and RAs, swaps, and calendar export.
 
 ## Data
 

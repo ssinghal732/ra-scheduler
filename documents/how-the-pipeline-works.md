@@ -111,6 +111,12 @@ prints what it matched:
 If it matched the wrong thing you see it here, not three steps later as empty
 availability.
 
+**How it matches a person to the roster.** By email first. If the email is not on the
+roster, by exact full name; if that fails, by a first name that matches exactly one
+roster entry. Each fallback is flagged, because it means the roster has the wrong
+email for someone and should be fixed. If nothing matches, the run stops. People turned
+out to have more than one ucsd.edu address, which is why email alone was not enough.
+
 **Availability is built by subtraction.** Start with every shift in the quarter. Take
 away weekday evenings on any day marked "Class Conflict/Unavailable". Take away every
 shift on any date in the blackout list. Whatever is left is what the person can work.
