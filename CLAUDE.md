@@ -1,6 +1,6 @@
 # RA Scheduler
 
-Fills the Seventh College quarterly RA duty schedule: 448 seats across 138 shifts and 43 RAs, from the duty leads' grid plus the availability form. A CP-SAT solver replaces the assignment step that currently takes 2-3 RAs roughly 8 hours per quarter by hand, and it has to honor rules a hand process routinely fumbles: a returners-only opening week, four weeks of experienced+new walk pairs, and per-tier shift loads.
+Fills the Seventh College quarterly RA duty schedule: 440 seats across 136 shifts and 43 RAs, from the duty leads' grid plus the availability form. A CP-SAT solver replaces the assignment step that currently takes 2-3 RAs roughly 8 hours per quarter by hand, and it has to honor rules a hand process routinely fumbles: a returners-only opening week, four weeks of experienced+new walk pairs, and per-tier shift loads.
 
 This file covers what this project is and how it's wired. How we work together lives in `~/.claude/CLAUDE.md`, which loads automatically in every session. Read that first.
 
@@ -73,7 +73,9 @@ Each was decided by Shivam with a reason, 2026-08-24 unless noted. Reopening the
 
 All measured 2026-08-24 against the real grid (`26-27_RA_Duty_Schedule.xlsx`) and the confirmed roster. Re-verify against the real availability data when it lands.
 
-**The grid** is the full quarter, 2026-09-08 to 2026-12-13: 138 shift instances, 448 seats, 86 duty dates. Holidays (Nov 11, 17, 26, 27) are written as the literal word "Holiday" across the slot cells, not a flag column. The week of Sept 21-27 has no duty at all.
+**The grid changed on 2026-08-26.** The leads' current file (`26-27 RA Duty Schedule (1).xlsx`, the one carrying the form responses in its `Fall Availability` tab) drops the Sept 8 and Sept 9 weekday evenings. **Now: 136 shifts, 440 seats, 84 duty dates, 2026-09-10 to 2026-12-13.** Returners-only block is 4 dates / 24 seats instead of 6 / 32. Pairing and normal blocks unchanged. `compute_targets()` re-derives from 440, and `_weekday_share()` from the new 232/440. Every figure below that says 448 or 138 was measured on the earlier file and is left as history. **Always run against the leads' latest file, never a cached copy.**
+
+**The grid, as first measured 2026-08-24,** was the full quarter, 2026-09-08 to 2026-12-13: 138 shift instances, 448 seats, 86 duty dates. Holidays (Nov 11, 17, 26, 27) are written as the literal word "Holiday" across the slot cells, not a flag column. The week of Sept 21-27 has no duty at all.
 
 **Rule blocks:** returners-only Sept 8-13 (6 dates, 32 seats), pairing Sept 14-Oct 18 (28 dates, 144 seats), normal Oct 19-Dec 13 (52 dates, 272 seats). The pairing block is exactly 4 duty weeks once the gap week is skipped, matching Shivam's "4 week period."
 
@@ -130,7 +132,14 @@ All measured 2026-08-24 against the real grid (`26-27_RA_Duty_Schedule.xlsx`) an
 | Shift location (FD / GR / either) | soft | Single choice, three options. |
 | Two "additional concerns" free-text boxes | manual | Weekend hard can't-dos hide here. Hand-encoded in v1. |
 
-**Dates are NEWLINE-separated, not comma-separated.** Page 6 tells people to press enter between dates. Every earlier plan assumed commas. Split on both.
+**What the first 7 real responses showed (2026-08-26), which the PDF could not:**
+- The ranking grid exports as five columns whose headers end `[Monday]` .. `[Friday]`. Values are **floats** (`1.0`) mixed with the string `Class Conflict/Unavailable` in the same column.
+- The weekend checkbox exports as one comma-joined string with the bracket labels intact.
+- **People wrote `12/9` and `9/10`, not `12/09` and `09/10`.** A fixed five-character chop fails. The parser reads `M/D` or `MM/DD` off the front of each entry instead. Same decision, wider front.
+- **About half used commas, not newlines**, despite the instruction. Split on both.
+- **The two date boxes are not the subset the form implies.** One person put 15 dates in the weekday box and a different 7 in the all-dates box. Unioned, disagreement flagged.
+- One person wrote `Oct. 17`. Reported, not guessed.
+- 2 of 7 respondents' emails were not on the roster.
 
 **The form makes a promise the solver currently cannot keep.** Twice it tells RAs: "Seventh College RAs will be assigned a week day per their availability each quarter," and "We will do our best to ensure you have your first or second most preferred weekday." The solver reads the ranking only for its Class Conflict marker and throws the ranks away. See AiCC task #4.
 
@@ -161,7 +170,8 @@ Install only what the code in front of you imports.
 |---|---|
 | `ra_scheduler/models.py` | Every rule constant: tiers, block dates, staffing shapes, target math. Nothing is defined twice. |
 | `ra_scheduler/grid.py` | Duty-grid xlsx to shift instances, holiday rows kept separately for export. |
-| `ra_scheduler/synthetic.py` | Synthetic availability, in the exact `AvailabilityData` shape the real form parser must produce. The parser replaces this one module and nothing downstream changes. |
+| `ra_scheduler/synthetic.py` | Synthetic availability and preferences, in the exact `AvailabilityData` shape. Used when `--availability` is omitted; the output is then stamped SYNTHETIC. |
+| `ra_scheduler/parse_form.py` | **The real thing.** Reads the Google Form export plus the roster into `AvailabilityData`. Keyword column matching with a printed match report, three-tier findings (STOP / FLAG / READ), every 08-26 parser decision encoded. |
 | `ra_scheduler/preflight.py` | Pre-solve arithmetic. Turns a bare `INFEASIBLE` into a dated list of what is short, and catches the parser faults that look like scheduling conflicts. Necessary conditions only; the solver stays the authority. |
 | `ra_scheduler/solver.py` | CP-SAT selection: who works each shift. All hard rules and the soft objective. |
 | `ra_scheduler/roles.py` | Slots the chosen people into named columns. Training-pair rules (walks AND desks) and desk preference live here. |
@@ -169,6 +179,7 @@ Install only what the code in front of you imports.
 | `ra_scheduler/export.py` | Writes the filled xlsx in the duty leads' exact column shape. |
 | `run_pipeline.py` | End to end: grid, availability, solve, roles, validate, export. |
 | `tests/test_roles.py` | Unit tests on the trickiest pure logic. `python tests/test_roles.py`. |
+| `tests/test_parse_form.py` | Parser tests on the shapes seen in the first real responses. No real data in them. |
 | `tests/test_preferences.py` | Unit tests on the preference layer. The first one guards the fairness-beats-preferences property. |
 | `tests/test_preflight.py` | Unit tests on the pre-solve check. No ortools needed, so they run anywhere. |
 | `documents/how-the-pipeline-works.md` | Plain-language walkthrough of every module, written for a non-technical reader. Published as an artifact too; keep the two in step. |
@@ -182,6 +193,7 @@ Install only what the code in front of you imports.
 - **Code yes, docs yes, data never.** Changed 2026-08-26 by Shivam, overriding the global rule that operator docs stay out of a repo. CLAUDE.md, NOW.md, and CHANGELOG.md are now tracked and pushed, so this repo carries its own context and a fresh session finds everything in one place. The condition attached: **no real names in any of them.** People are referred to by role, because `git push` is permanent and stripping a name later means rewriting history, not editing a file.
 - **Data still never enters the repo.** The real grid, the availability export, and any filled schedule carry real RA names. `.gitignore` blocks `*.xlsx` / `*.csv` / `*.json` so that cannot happen by accident.
 - **People:** the ADRL supervising this project is also a duty lead; two RA duty leads run the schedule day to day. The ADRL receives the finished schedule; whether they operate the tool themselves is an open question that decides the v2 UI. Names are deliberately kept out of this repo.
+- **The parser is built** (`ccbbf80`, 2026-08-26) and verified on the first 7 real responses: every column matched, every availability key it produced matches a real shift. Run: `python run_pipeline.py --grid <grid> --roster <roster> --availability <export> --sheet "Fall Availability" --out <out>`. It STOPs until every roster member has submitted.
 - **The form-fix thread is closed.** Read the shipped form 2026-08-26 (`~/Downloads/DutyAvailForm_FA26.pdf`, 7 pages). See "The form as shipped" below for what landed and what the parser faces. **The real deadline is Thursday 08/27 at 11:59 pm**, not 08/28: responses are still arriving through Thursday evening, so a complete set does not exist until Friday morning.
 - **Time category:** `RA_Scheduler`, short code `RAS`, in `technical-projects`. Created 2026-08-26. Log with `time_log(category='RAS', ...)`. Ask Shivam for the hours; never guess them.
 

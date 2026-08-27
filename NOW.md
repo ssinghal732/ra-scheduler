@@ -2,7 +2,7 @@
 
 ## What this is
 
-RA Scheduler: fills the Seventh College quarterly duty schedule (448 seats, 138 shifts, 43 RAs) from the duty leads' grid plus the availability form, honoring the returners-only week, four weeks of experienced+new walk pairs, and per-tier loads. Spec at `../ra-scheduler-v1-spec.md`. Project brief in [CLAUDE.md](CLAUDE.md).
+RA Scheduler: fills the Seventh College quarterly duty schedule (440 seats, 136 shifts, 43 RAs) from the duty leads' grid plus the availability form, honoring the returners-only week, four weeks of experienced+new walk pairs, and per-tier loads. Spec at `../ra-scheduler-v1-spec.md`. Project brief in [CLAUDE.md](CLAUDE.md).
 
 Built end to end and proven on synthetic availability in one day, 2026-08-24. Form closes 2026-08-27 at 11:59 pm, so a complete response set exists 2026-08-28.
 
@@ -18,6 +18,10 @@ Built end to end and proven on synthetic availability in one day, 2026-08-24. Fo
 
 **Pairing-period training rule corrected (2026-08-26).** Only the walk pairs had been constrained to 1 experienced + 1 new. Shivam asked whether the desk pairs were checked too; they were not, and 10 of 28 pairing shifts had two new RAs staffing a desk together for the whole evening. Both the walk and the desk shift are training, so all four pairings are now mixed, verified independently in `validate.py`. 56 of 56 on both.
 
+**The parser is built and verified on real data (2026-08-26, `ccbbf80`).** `parse_form.py` reads the Google Form export and the roster into the same `AvailabilityData` that `synthetic.py` produces. Built against the first 7 real responses: every column matched, 5 of 7 joined to the roster, every availability key it produced matches a real shift. Three-tier findings: STOP halts before the solver (roster member with no submission, all five weekdays conflicted, missing column), FLAG prints and continues (duplicates, >10 blackouts, unreadable dates, off-roster respondent, repeated ranks), READ prints every non-trivial concerns box. Wired in as `--roster` and `--availability`; omit both and the run stays synthetic and stamped.
+
+**The grid changed (2026-08-26).** The leads' current file drops the Sept 8 and 9 evenings: now 136 shifts / 440 seats, starting Sept 10. Returners-only block is 4 dates / 24 seats. Targets and the weekday share re-derive automatically. Always run against their latest file.
+
 **Weekday/weekend balance shipped (2026-08-26).** Reverses the old "total shift count only" decision at Shivam's call. Each RA's mix is pulled toward the grid's own 53.6% weekday share: LRA 3/2, returner 5/5, new 6/5, derived not hardcoded. Soft, because an RA with five weekday class conflicts can only work weekends. Sits above preferences. A/B on the real grid: RAs on their ideal mix went 12/43 to 38/43 and worst imbalance 4 to 1, with fairness and both preference numbers completely unchanged.
 
 **All four soft preferences now honoured (2026-08-26).** Weekday rank, weekend day, and weekend time are solver objective terms; desk preference is handled in `roles.py`. Fairness stays strictly first: the fairness terms are scaled past the worst possible preference cost, derived from the grid. On the real grid with synthetic preferences: 237/240 weekday shifts on a 1st or 2nd choice day, 41 of 43 RAs at 100%, 188/188 weekend matches, 215/275 desks (78%), fairness unchanged at max deviation 1. `synthetic.py` now emits every field the form collects, so Thursday's parser has an exact target shape.
@@ -26,22 +30,16 @@ Built end to end and proven on synthetic availability in one day, 2026-08-24. Fo
 
 ## Next
 
-1. **The form-export parser, 2026-08-27, when the data lands.** Reads the Google Form sheet export into the same `AvailabilityData` that `synthetic.py` produces, then the identical pipeline runs. It has to produce BOTH halves: the roster (who, and which tier) and the availability. `synthetic.py` currently invents both. Four things are decided and need no further discussion:
-   - **Key on ucsd email, never on names.** Replaying last year, only 4 of 45 names matched exactly.
-   - **Blackout dates: MM/DD only, chopped at position 5.** The new form specifies `MM/DD (Reason)` and Shivam hand-checks responses before the parser runs. Anything with no leading date is reported as unreadable, never guessed.
-   - **Non-submitters stop the run and get listed.** No silent default either way.
-   - **No NLP.** Plain string matching and a regex.
-
-   Settled 2026-08-26 by reading the shipped form (see CLAUDE.md, "The form as shipped"): ranking is a clean 1-5, dates are NEWLINE-separated not comma-separated, and there are TWO date columns (weekday-only and all-dates) that must be unioned. **Capture the 1-5 ranks even though the solver ignores them**, or task #4 means parsing twice. Still hand-encoded in v1: weekend hard can't-dos hiding in the two free-text concerns boxes.
-2. **The `--availability` wiring, same session.** Line 39 of `run_pipeline.py` hardcodes `make_availability(shifts)`, so a run against the real grid today produces a correct-looking schedule staffed by R00-R42 and nothing in the output says so except one `(synthetic)` label. Shivam is building parser and wiring together on 08-27. Open design question raised and not yet decided: whether the pipeline should refuse to write a file at all when availability is synthetic, or force SYNTHETIC into the filename.
-3. **First real run.** Fix real conflicts as they surface. First check: can 17 experienced RAs actually cover the 32 returners-only seats given their real availability. Second check: every RA in the form matches a roster row keyed by ucsd email, and non-submitters are chased, not silently dropped.
+1. **Wait for the rest of the responses.** 7 of 43 are in as of 08-26 evening; the form closes 08-27 at 11:59 pm. The parser STOPs on every missing person by name, so the chase list is one run away at any point.
+2. **Resolve the 2 off-roster respondents.** Two people submitted with an email that is not on `RA Roster - Tiered.xlsx`. Either the roster email is wrong for them or they are not on it. Fix the roster, not the parser.
+3. **First real run, Friday 08-28.** Fix real conflicts as they surface. First check: can 17 experienced RAs cover the 24 returners-only seats given their real availability. Second check: every RA in the form matches a roster row keyed by ucsd email, and non-submitters are chased, not silently dropped.
 4. **Show the schedule, not the test results.** Before anyone trusts it, the supervising ADRL and the duty leads eyeball a real filled schedule. The validator saying zero violations is Claude grading homework Claude wrote; the leads reading actual rows is the evidence that counts. Lesson imported from the colony counter.
 5. **Tune the preference weights against real rankings.** The layer is built and passing; what is untested is how it behaves when rankings are lopsided. Synthetic rankings spread almost evenly (10/6/7/9/11 people per first-choice day) and produced 99%. If 20 real RAs all rank Friday first, the number falls and the interesting question becomes whether that is acceptable or whether the cost curve needs adjusting. Measure first, change nothing until then.
 6. **Desk seating is done being tuned.** 78%, examined 2026-08-26. The greedy split was already optimal; pair selection added 8 seats. What remains is structural: 34 misses are people who want a game room seated on weekend Morning/Afternoon shifts, which have none. Fixing that means letting a desk wish override a day or time wish, which Shivam ruled against. Closed unless he reopens it.
 
 ## Blocked
 
-- **Real data:** the form closes 2026-08-27 at 11:59 pm. Partial responses are parseable Thursday daytime; the complete set is Friday morning. Build and debug the parser against partials, run the real schedule Friday.
+- **Real data:** 7 of 43 responses in. Form closes 2026-08-27 at 11:59 pm. The parser is built and tested on the 7; the real run is Friday morning.
 
 
 ## Open questions

@@ -20,14 +20,15 @@ For Fall 2026 that means picking 448 names across 138 shifts from 43 RAs, so tha
 nobody is scheduled when they can't work, the special rules hold, and the workload
 comes out fair.
 
-Eight Python files do this. They work like an assembly line, each station handing
+Nine Python files do this. They work like an assembly line, each station handing
 its work to the next.
 
 ```
-grid.py ──┐
-          ├──> preflight.py ──> solver.py ──> roles.py ──> validate.py ──> export.py
-synthetic ┘         (warn)        (who)        (where)       (check)        (write)
+grid.py ────┐
+            ├──> preflight.py ──> solver.py ──> roles.py ──> validate.py ──> export.py
+parse_form ─┘         (warn)        (who)        (where)       (check)        (write)
    .py
+(or synthetic.py, for a dry run)
 ```
 
 `models.py` sits underneath all of them. `run_pipeline.py` sits on top, running the line.
@@ -85,6 +86,44 @@ can work with.
 
 **Output:** two lists. Shifts that need staffing, and holiday rows kept aside so the
 exporter can put them back in the right place.
+
+---
+
+## `parse_form.py` — reading the form
+
+**Plain version.** Opens the Google Form response sheet and the roster, and turns
+them into the one object everything downstream consumes.
+
+Two inputs. The roster is three columns: email, name, tier. The form export is one
+row per submission, one column per question.
+
+**How it finds columns.** Google Forms uses the entire question text as the column
+header, a paragraph long. Matching that exactly would break the moment anyone edited
+a word. So each field is found by a short distinctive keyword instead, and the parser
+prints what it matched:
+
+```
+[parse]  email           <- Email Address
+[parse]  weekday ranks   <- 5 columns ending [Monday] .. [Friday]
+[parse]  all_dates       <- Please identify ALL of the DATES you CANNOT do...
+```
+
+If it matched the wrong thing you see it here, not three steps later as empty
+availability.
+
+**Availability is built by subtraction.** Start with every shift in the quarter. Take
+away weekday evenings on any day marked "Class Conflict/Unavailable". Take away every
+shift on any date in the blackout list. Whatever is left is what the person can work.
+
+**Dates are read off the front of each entry.** `12/9 (Final)`, `12/09(Final)`, and
+`12/9 - Final` all read as December 9. `Oct. 17 (Concert)` reads as nothing, and is
+reported for a human to fix. The parser never guesses at a date.
+
+**It flags what looks odd.** Three tiers. STOP halts before the solver runs: someone
+on the roster has not submitted, or marked every weekday as a conflict. FLAG prints
+and continues: a duplicate submission, more than ten blackout dates, a date it could
+not read. READ prints every free-text concerns box in full, because last year about
+one in eight of those held a real constraint that no parser could have seen.
 
 ---
 

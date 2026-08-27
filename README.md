@@ -12,20 +12,27 @@ plain-language walkthrough of every module.
 
 ```
 pip install ortools openpyxl
-python run_pipeline.py --grid <duty-schedule.xlsx> --out <filled.xlsx> [--seed N]
+
+# the real thing
+python run_pipeline.py --grid <duty-schedule.xlsx> \
+                       --roster <roster.xlsx> \
+                       --availability <form-export.xlsx> --sheet "Fall Availability" \
+                       --out <filled.xlsx>
+
+# a dry run with invented people; the output is forced to carry SYNTHETIC in its name
+python run_pipeline.py --grid <duty-schedule.xlsx> --out <filled.xlsx>
+
 python run_pipeline.py ... --preflight-all     # every pre-solve finding, not the first 20
+python run_pipeline.py ... --seed N            # role-slotting seed; same inputs + seed = same schedule
 ```
 
-Same seed plus same inputs gives the same schedule; reruns are reproducible.
+The roster is a three-column sheet, `Email | Name | Tier`, with tier one of LRA /
+Returner / New. The form export is the Google Forms response sheet downloaded as xlsx.
 
-Availability is synthetic (`ra_scheduler/synthetic.py`) until the real form parser
-lands. The parser replaces that one module and produces the same `AvailabilityData`,
-so nothing downstream changes.
-
-> **A run today uses invented people.** `run_pipeline.py` calls `synthetic.py`
-> unconditionally, so it will happily produce a correct-looking schedule staffed by
-> `R00`–`R42` on real dates. The only thing that says so is the `[avail] (synthetic)`
-> line. Do not hand that output to anyone.
+The parser prints which column it matched to each field, then a findings report.
+**STOP** findings halt the run (someone on the roster has not submitted, or marked all
+five weekdays as conflicts). **FLAG** findings print and continue. **READ** findings
+are the free-text concerns boxes, printed in full for a human to read before solving.
 
 ## Modules
 
@@ -33,37 +40,40 @@ so nothing downstream changes.
 |---|---|
 | `ra_scheduler/models.py`    | all rule constants: tiers, block dates, staffing, targets |
 | `ra_scheduler/grid.py`      | duty-grid xlsx -> shift instances (+ holiday rows) |
-| `ra_scheduler/synthetic.py` | synthetic availability (stand-in for the form parser) |
+| `ra_scheduler/parse_form.py` | Google Form export + roster -> `AvailabilityData`, with a findings report |
+| `ra_scheduler/synthetic.py` | invented availability and preferences, used when `--availability` is omitted |
 | `ra_scheduler/preflight.py` | pre-solve arithmetic: says *why* a solve will fail, before it does |
 | `ra_scheduler/solver.py`    | CP-SAT: picks who works each shift |
 | `ra_scheduler/roles.py`     | slots people into named columns (walk pairs) |
 | `ra_scheduler/validate.py`  | independent re-check of every rule (shares no solver code) |
 | `ra_scheduler/export.py`    | writes the filled xlsx in the team's column shape |
-| `tests/`                    | `python tests/test_roles.py`, `python tests/test_preflight.py` |
+| `tests/`                    | four suites, each runnable directly: `python tests/test_<name>.py` |
 
-## The form parser (not built yet)
-
-Decided 2026-08-24, so it doesn't get re-litigated:
+## Decisions encoded in the parser
 
 - **Key on ucsd email, never on names.** Replaying last year, only 4 of 45 names
   matched exactly between the form and the schedule.
-- **Blackout dates are `MM/DD` only**, read off the front of each comma-separated
-  entry. Anything without a leading date is reported as unreadable, never guessed at.
-- **Non-submitters stop the run and get listed.** Defaulting them to available or to
-  unavailable both produce a plausible schedule built on someone the tool knows
-  nothing about.
-- **No NLP.** 43 hand-checked rows a quarter don't need it, and a regex that can't
-  read something says so while a model returns a confident guess.
+- **A blackout date is `M/D` or `MM/DD` read off the front of each entry**, entries
+  split on newlines and commas. Anything with no leading date is reported, never
+  guessed at.
+- **Both "dates you cannot do" boxes are unioned.** They disagree for some people.
+- **Duplicate submissions: latest timestamp wins**, flagged.
+- **A roster member who has not submitted stops the run.** So does anyone who marked
+  all five weekdays as class conflicts.
+- **No NLP.** 43 rows a quarter, pre-checked by a human. A regex that fails says so.
 
-## Status (2026-08-24)
+## Status (2026-08-26)
 
-Proven end to end against the real grid with synthetic availability: `OPTIMAL`,
-0 violations, max deviation 1 (LRA 5, returner 10-11, new 11-12), all new RAs at or
-above the 2-shift training floor, 28 of 28 pairing-period evening shifts with mixed
-walk pairs.
+Every module is built and tested. The solver honours fairness first (total shifts,
+then weekday/weekend mix), then all four preferences the form collects (weekday
+rank, weekend day, weekend time, desk), then randomises what is left. On the real
+grid with synthetic availability: `OPTIMAL`, 0 violations, max deviation 1, 38 of 43
+RAs on their ideal weekday/weekend mix, 99% of weekday shifts on a first or second
+choice day.
 
-Every module is exercised against real input except availability. Remaining for real
-data: the form parser and an `--availability` flag to point at it.
+The parser has been run on the first 7 real responses: every column matched, every
+availability key it produced matches a real shift. The real run happens once the form
+closes and everyone has submitted.
 
 ## Data
 
