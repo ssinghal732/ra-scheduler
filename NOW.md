@@ -91,6 +91,16 @@ Open question for Shivam: is this for the duty leads and ADRLs only, or is it al
 | Stack in the doc | Describe the pieces; name the stack as "likely." |
 | Audience for doc 2 | Portfolio. Needs framing: problem, constraints, architecture, decisions with reasons. |
 
+### Status of the three docs (2026-08-27)
+
+| Doc | File | State |
+|---|---|---|
+| 1. Product vision | `documents/product-vision.html` | Drafted, reviewed twice, committed. For the ADRL and duty leads. |
+| 2. Technical design | `documents/technical-design.html` | Drafted from Shivam's 18 answers, reviewed once, committed. Portfolio audience. |
+| 3. Design brief | `documents/design-brief.html` | Drafted after a design discussion, reworked so only product facts are fixed and every UI choice is a leaning with a reason. Committed. Goes to Claude Design with the vision doc, tech doc sections 1-3, Shivam's visual system, and a screenshot of the SYNTHETIC schedule. |
+
+All three name Shivam as author. All three are .html; Shivam does not read .md.
+
 ### Doc 3, design brief for Claude Design
 
 The brief should say what the product is for and who uses it, and leave the visual design open. Direction to settle with Shivam first:

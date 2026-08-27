@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RA Duty Scheduler, Design Brief</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  :root {
+    --paper: #f3f6f7; --surface: #ffffff; --ink: #101820; --ink-soft: #3f4f5b; --muted: #697b88;
+    --rule: #d8e1e7; --rule-soft: #e7edf1; --accent: #1f4e79; --accent-on: #ffffff; --accent-wash: #e9f0f6;
+    --amber: #8f5522; --amber-wash: #fbf3ea; --code-bg: #eef2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0d1317; --surface: #141d23; --ink: #e7eef3; --ink-soft: #b6c4ce; --muted: #8496a2;
+      --rule: #25333c; --rule-soft: #1c272e; --accent: #7fb5e2; --accent-on: #0d1317; --accent-wash: #15242f;
+      --amber: #d59b6b; --amber-wash: #1f1913; --code-bg: #0f191f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0d1317; --surface: #141d23; --ink: #e7eef3; --ink-soft: #b6c4ce; --muted: #8496a2;
+    --rule: #25333c; --rule-soft: #1c272e; --accent: #7fb5e2; --accent-on: #0d1317; --accent-wash: #15242f;
+    --amber: #d59b6b; --amber-wash: #1f1913; --code-bg: #0f191f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: "IBM Plex Serif", Georgia, serif; font-size: 17px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 800px; margin: 0 auto; padding: 56px 24px 96px; }
+  .eyebrow { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 18px; }
+  h1 { font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 700; font-size: clamp(2rem, 5vw, 2.8rem); line-height: 1.1; letter-spacing: -.025em; margin: 0 0 14px; }
+  .standfirst { font-style: italic; color: var(--ink-soft); font-size: 1.08rem; margin: 0 0 40px; padding-bottom: 28px; border-bottom: 1px solid var(--rule); }
+  h2 { font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 600; font-size: 1.42rem; letter-spacing: -.015em; line-height: 1.25; margin: 52px 0 14px; }
+  h3 { font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 600; font-size: 1.05rem; margin: 26px 0 8px; }
+  p { margin: 0 0 18px; max-width: 70ch; }
+  ul, ol { margin: 0 0 18px; padding-left: 20px; max-width: 70ch; }
+  li { margin-bottom: 7px; }
+  li strong, p strong { font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 600; }
+  code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .86em; background: var(--code-bg); padding: .1em .38em; border-radius: 2px; }
+  pre { background: var(--code-bg); border: 1px solid var(--rule); border-radius: 3px; padding: 14px 16px; overflow-x: auto; margin: 0 0 20px; }
+  pre code { background: none; padding: 0; font-size: 12.5px; line-height: 1.55; }
+  .lede { background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: 3px; padding: 20px 24px; margin: 0 0 8px; }
+  .lede p:last-child { margin-bottom: 0; }
+  .note { background: var(--amber-wash); border: 1px solid var(--rule); border-left: 3px solid var(--amber); border-radius: 3px; padding: 16px 20px; margin: 22px 0; }
+  .note p:last-child, .note ul:last-child { margin-bottom: 0; }
+  .tablewrap { overflow-x: auto; margin: 18px 0 26px; }
+  table { border-collapse: collapse; width: 100%; font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 14.5px; background: var(--surface); border: 1px solid var(--rule); }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  th { font-weight: 600; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--accent-on); background: var(--accent); border-bottom: 0; }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child { white-space: nowrap; }
+  ol.slides { counter-reset: s; list-style: none; padding-left: 0; }
+  ol.slides li { position: relative; padding-left: 44px; margin-bottom: 12px; counter-increment: s; }
+  ol.slides li::before { content: counter(s); position: absolute; left: 0; top: .15em; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-on); font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px; display: flex; align-items: center; justify-content: center; }
+  .colophon { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--rule); font-style: italic; color: var(--muted); font-size: .95rem; }
+  @media print { body { background: #fff; color: #000; font-size: 11pt; } .page { padding: 0; max-width: none; } h2 { break-after: avoid; } .lede, .note, table, pre { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <p class="eyebrow">Student project · Seventh College, UC San Diego · August 2026</p>
+  <h1>RA Duty Scheduler, Design Brief</h1>
+  <p class="standfirst">For Claude Design. What to make, who it's for, what the product does, and the thinking so far. The UI is yours to design; this brief gives you the reasoning behind the leanings so you can agree with them or propose something better. The visual system (colors, type, the look of the existing RA site) is supplied separately by Shivam.</p>
+
+  <div class="lede">
+    <p><strong>Make a ten-slide presentation</strong> for the ADRL and the two RA duty leads at Seventh College. Two slides explain, without technical language, how the scheduling tool works. Six show the proposed web app through mockups. Two close with questions for them and what happens next. The point of the presentation is to settle the design before anything is built and to get the admin side right with the people who'll use it.</p>
+  </div>
+
+  <h2>What the product is</h2>
+  <p>Forty-three RAs share duty coverage every quarter: weekday evenings and three shifts a day on weekends. A scheduling tool already exists and works: it reads the availability form and the duty template, applies the rules, and produces a fair schedule in seconds. The web app wraps that tool so that the schedule, swaps, and calendars live in one place instead of a spreadsheet, a Google Form, a script, and a folder of calendar files that go stale.</p>
+  <p>Two kinds of people use it. <strong>RAs</strong> check who's on when, see their own shifts, request swaps, and subscribe to a calendar that stays current. <strong>Admins</strong> (the duty leads, the ADRL, and the lead RAs) do all of that plus import availability, build and edit the schedule, approve swaps, change settings, and read the numbers. Admins are RAs too; they get the same screens plus an Admin tab.</p>
+
+  <h2>Where the thinking has landed, and why</h2>
+  <p>None of this is a requirement. Each is a leaning with its reason, from Shivam's design conversations while building the tool. If you see a better way to get the same outcome, propose it and say why.</p>
+  <ul>
+    <li><strong>Familiarity over novelty.</strong> The duty schedule today is a sheet with one row per shift: date, day, shift, time, four names, duty-round location. RAs know it. The leaning is to keep that shape so there's nothing to relearn, with today highlighted and the list scrolling both ways. One way to do that is the sheet itself on a laptop and the same rows as cards on a phone. If you find a shape that's as instantly readable and better, that wins.</li>
+    <li><strong>Each screen has one job.</strong> Who's on when. When am I on and can I trade it. What needs me right now. The leaning is to keep anything that doesn't serve the screen's question off it.</li>
+    <li><strong>Simple to use over impressive to look at.</strong> The people using this are students checking a shift at 6pm. Shivam's words: it shouldn't look over-engineered or like a bunch of random information. Metrics belong under Admin, where someone has a reason to want them.</li>
+    <li><strong>Show why, don't hide.</strong> When something can't be done (a shift you can't take, a swap that would break a rule), the leaning is to show it dimmed with one line saying why, rather than removing it. Hidden options are where confusion starts. How that looks is yours.</li>
+    <li><strong>No chat, no AI anything.</strong> There is none in the product. This one is a fact, not a leaning.</li>
+    <li><strong>Light by default, dark available.</strong> It gets used at 11pm. Shivam's words: not a big thing.</li>
+    <li><strong>Phone and laptop, both, for everyone.</strong> RAs check on phones and leads build on laptops, but nobody should be locked out on either. Hand-editing a schedule is probably a laptop task; whether the phone version of that is a reduced view or a message saying so is yours.</li>
+  </ul>
+
+  <h2>What each screen needs to do</h2>
+  <p>These describe the job and the current thinking. They are not layouts.</p>
+
+  <h3>1. The schedule (RA home)</h3>
+  <p>The whole quarter, one row per shift, today at the top. Scroll up for what's past, down for what's coming. The user's own name is highlighted wherever it appears, so "who am I on with tonight" is answered without touching anything.</p>
+  <p>The RA also needs a view of just their own shifts, with their next shift and how many they have left (<em>4 of 11</em>), and a way to start a swap from any of them. The current thinking is an Everyone / Me toggle on one list, so switching never changes what the list looks like, rather than two tabs holding the same dates. Shivam's one condition: whatever it is, it has to be obvious. If a different structure is clearer, use it.</p>
+  <p>For orientation only, here is one shape it could take. This is an illustration of the information, not a layout to copy.</p>
+  <pre><code>  Everyone   [ Me ]                                       Fall 2026
+
+  NEXT   Thu Oct 8 · 6–11pm · Front Desk · with Daphne        4 of 11 left
+
+  ── TODAY  Tue Oct 6 ─────────────────────────────────────────────
+  Evening (Weekday)  6–11pm
+    Front Desk   Fred · Velma            Rounds: Primary West
+    Game Room    Shaggy · Scooby                  Secondary East
+
+  Wed Oct 7
+  Evening (Weekday)  6–11pm
+    Front Desk   Daphne · Fred
+    Game Room    Velma · Scrappy
+
+  Thu Oct 8                                              ← your shift
+  Evening (Weekday)  6–11pm                                  [ Swap ]
+    Front Desk   YOU · Daphne
+    Game Room    Shaggy · Velma</code></pre>
+
+  <h3>2. Requesting a swap</h3>
+  <p>One-for-one trades only. The RA finds a partner the way they do now, in the group chat; the app records the trade. From their own shift: tap Swap, pick the partner from the roster, then pick which of the partner's shifts to take. That list shows every shift the partner has, with the ones the requester can't take greyed out and the reason on one line: <em>you marked Tuesdays as a class conflict</em>, <em>pairing week: you'd need to trade with another new RA</em>, <em>you're already on that day</em>. Send.</p>
+  <p>A swap passes through three states, and both RAs and the admins need to see which one it's in: <strong>requested</strong> (waiting on the partner), <strong>accepted</strong> (waiting on a lead), <strong>approved</strong> (done; the schedule and both calendars have updated, both people got an email). Rejected is a state too. A swap that would break a rule can still be requested; it reaches the lead with the rule shown. How those states are presented is yours.</p>
+
+  <h3>3. My calendar</h3>
+  <p>Small screen or a section of Me. A subscribe link that keeps itself current when swaps go through, a download for people who prefer to import once, and the link to the everyone calendar. One sentence of instructions per calendar app.</p>
+
+  <h3>4. Admin: status</h3>
+  <p>The landing page of the Admin tab. The thinking is that what a lead needs to see changes with the quarter, so the page should lead with whatever needs a decision now rather than being a fixed dashboard. Roughly:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Phase</th><th>What the page leads with</th></tr></thead>
+      <tbody>
+        <tr><td>Form open</td><td>31 of 43 submitted. The twelve names who haven't. The flags on what's in so far.</td></tr>
+        <tr><td>Ready to build</td><td>The findings report from the import (who's missing, who marked every weekday, dates it couldn't read, every concerns box). One Build button.</td></tr>
+        <tr><td>Draft built</td><td>The schedule, the numbers (shifts per person, the split, choice rate), Edit and Publish.</td></tr>
+        <tr><td>Published</td><td>Swaps waiting for approval, each with its rule check already run. Then swaps this week.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>For the ADRL, who mostly wants to look rather than act, this page is enough.</p>
+
+  <h3>5. Admin: build and edit (laptop)</h3>
+  <p>The draft schedule as a grid, a week at a time or the full quarter. A lead can move a person: pick a seat, pick a replacement from the people who are free for it (others greyed with the reason). The rule check re-runs on every edit and shows what, if anything, broke. Publish locks it and sends everyone their calendar.</p>
+
+  <h3>6. Admin: settings and metrics</h3>
+  <p>Settings: the returners-only dates, the pairing weeks, how many shifts each tier carries, the order preferences are honored in, which soft rules are on. Current values shown, per quarter. Metrics: swaps per week is the one that matters; shifts per person, weekday/weekend split, and first-or-second-choice rate are nice to have. Plain tables are fine.</p>
+
+  <h2>Mock data</h2>
+  <p>Use Scooby-Doo characters for RA names: Fred, Daphne, Velma, Shaggy, Scooby, Scrappy, and the rest of the cast as needed. Never real people. Shift structure is real and should be used as is: weekday evenings 6 to 11pm with two at the front desk and two in the game room; weekend mornings 9 to 2 and afternoons 2 to 7 with two at the front desk; weekend evenings 7 to 11 with four. Fall 2026 runs September 10 to December 13 with a break week September 21 to 27 and holidays November 11, 17, 26, and 27.</p>
+
+  <h2>The two backend slides</h2>
+  <p>Workflow first, then how it decides. No algorithm names, no code.</p>
+  <ol>
+    <li><strong>The workflow.</strong> Five boxes left to right: the availability form and the duty template come in; the tool reads them and flags anything odd (who hasn't submitted, a date it couldn't read); it applies the rules; it picks the best legal schedule; it checks its own work and writes the schedule out in the usual format. Under it, one line: under ten seconds, where the hand process took four to five hours plus a few more after the draft.</li>
+    <li><strong>How it decides.</strong> Layers, top to bottom, each one only breaking ties for the one above: the rules that never bend (availability, returners-only week, training pairs, no back-to-back); then fairness (even shift counts, an even weekday/weekend split, no more than one shift a week); then what people asked for (first or second choice weekday, weekend day, weekend time, desk). The sentence to land: <em>it never trades someone's fair share for someone else's preference.</em></li>
+  </ol>
+
+  <h2>The ten slides</h2>
+  <ol class="slides">
+    <li>Title. What this is, who built it, what today is for.</li>
+    <li>How the schedule gets made today. The hand process in one picture: hidden tabs, randomize, count by hand, swap form, script, stale calendars.</li>
+    <li>The workflow. Backend slide one.</li>
+    <li>How it decides. Backend slide two.</li>
+    <li>The schedule, Everyone view. Laptop and phone side by side.</li>
+    <li>The Me view. Next shift, shifts left, the highlighted rows, the Swap button.</li>
+    <li>A swap in three states.</li>
+    <li>Admin: the status page, shown in two of its phases.</li>
+    <li>Admin: build and edit, settings, metrics.</li>
+    <li>Questions for you, and what happens next.</li>
+  </ol>
+
+  <h2>The questions the presentation ends on</h2>
+  <p>These are for the leads and the ADRL to answer, and the last slide should make that clear.</p>
+  <ul>
+    <li>Which settings do you want to change each quarter, and which should stay fixed?</li>
+    <li>Should availability stay in the Google Form (imported) or move into the app?</li>
+    <li>Should RAs see the whole schedule, as now, or only their own shifts and who they're on with?</li>
+    <li>Should every swap need a lead's approval, or only swaps that would break a rule?</li>
+    <li>Which of the unwritten rules should the tool enforce, and which stay judgment calls?</li>
+  </ul>
+  <p>What happens next, for the same slide: the scheduling tool runs on the real fall schedule first. The app comes after it has earned trust, starting with the read-only schedule and calendars, then swaps, then the admin build.</p>
+
+  <div class="note">
+    <p><strong>What's real and what's proposed.</strong> The scheduling tool exists and is tested. Everything on the app side is a proposal for the presentation; none of it is built. Don't imply otherwise on a slide.</p>
+  </div>
+
+  <h2>What's fixed, and what isn't</h2>
+  <p>Fixed, because they're facts about the product rather than design choices:</p>
+  <ul>
+    <li>Two kinds of user: RAs, and admins who are RAs with an extra tab.</li>
+    <li>What the app does: show the schedule, show my shifts, request one-for-one swaps that a lead approves, subscribe to a calendar, and on the admin side import, build, edit, publish, approve, settings, metrics.</li>
+    <li>No chat and no AI anywhere.</li>
+    <li>Scooby-Doo names in mockups, never real people.</li>
+    <li>The visual system comes from Shivam separately.</li>
+    <li>Nothing on the app side exists yet; don't imply it does.</li>
+  </ul>
+  <p>Everything else in this brief is a leaning with a reason attached: the sheet-like list, the Everyone/Me toggle, greying instead of hiding, the phase-based status page, where editing lives. Take them, improve them, or replace them. What Shivam wants back is a design he can put in front of the duty leads and defend, so if you depart from a leaning, say what you did instead and why, and it'll be an easy conversation.</p>
+
+  <p class="colophon">Brief by Shivam Singhal, Seventh College RA, August 2026. The scheduling tool it describes is at <code>github.com/ssinghal732/ra-scheduler</code> (private).</p>
+
+</div>
+</body>
+</html>
