@@ -37,6 +37,47 @@ Built end to end and proven on synthetic availability in one day, 2026-08-24. Fo
 5. **Tune the preference weights against real rankings.** The layer is built and passing; what is untested is how it behaves when rankings are lopsided. Synthetic rankings spread almost evenly (10/6/7/9/11 people per first-choice day) and produced 99%. If 20 real RAs all rank Friday first, the number falls and the interesting question becomes whether that is acceptable or whether the cost curve needs adjusting. Measure first, change nothing until then.
 6. **Desk seating is done being tuned.** 78%, examined 2026-08-26. The greedy split was already optimal; pair selection added 8 seats. What remains is structural: 34 misses are people who want a game room seated on weekend Morning/Afternoon shifts, which have none. Fixing that means letting a desk wish override a day or time wish, which Shivam ruled against. Closed unless he reopens it.
 
+## The three product docs (starting 2026-08-27, AiCC task #5)
+
+Shivam wants three documents. Headstart notes below so tomorrow starts with decisions, not blank pages.
+
+### What already exists that feeds them
+
+- **The decisions table in CLAUDE.md** is the seed of the decisions document: about 20 choices, each with the reason, each dated. The technical design doc can lift it nearly whole.
+- **`documents/how-the-pipeline-works.md`** is the non-technical backend walkthrough. The "couple of slides on the backend" in the design brief are a compression of it.
+- **Last year's sheet shows two features already expected by the RAs**, not invented for v2: a swap form ("Cover Shifts here: RA Duty Swap Form - Changes are reflected in Yellow", 355 records in one quarter) and calendar export ("ICS Calendar Files of Shifts (Courtesy of Shivam!) ... these dont sync up with swaps so keep track of your swaps yourself!"). That second parenthetical is a product requirement in disguise: **swaps and the calendar must stay in sync**, which the current process cannot do.
+- **The ADRLs and duty leads will operate the tool** (confirmed 08-26). Two user types are already implied: the leads (build and publish the schedule, approve swaps) and RAs (see their shifts, request swaps, export to calendar).
+
+### Doc 1, product vision (1-2 pages, plain English)
+
+Structure that fits what is known: the problem (2-3 RAs, ~8 hours a quarter, rules fumbled by hand, 355 swaps then tracked by hand); who it is for (leads and RAs); what it does in one paragraph with no technical words; what changes for each group; what it does NOT do (it does not decide the rules, people do; it does not replace the leads, it removes the tedious part). The measured numbers are the evidence: 448 seats in under 10 seconds, 0 rule violations, 38 of 43 RAs on their ideal weekday/weekend mix, 99% on a 1st or 2nd choice day.
+
+Open question for Shivam: is this for the duty leads and ADRLs only, or is it also a portfolio piece? The answer changes the tone.
+
+### Doc 2, technical design and architecture
+
+Suggested shape: what exists today (v1, built, tested, one machine, files in and files out) drawn honestly, then what v2 adds around it. The solver core does not change; v2 wraps it.
+
+Things to decide tomorrow, each is a real fork:
+- **Where it runs.** A laptop script the leads run, or a hosted service. Decides whether there is a backend at all.
+- **Data store.** Today it is xlsx in and xlsx out. A UI with swaps needs a source of truth that is not a spreadsheet. Smallest thing that works is probably SQLite; anything more needs a reason.
+- **Does the Google Form stay?** The form-to-xlsx-to-parser path works. A UI could replace the form with its own availability page and skip the parser entirely, or keep the form and import. Keeping the form is less to build and the leads already know it.
+- **LLM: no.** The no-NLP decision for the parser stands and nothing in v2 wants one. Worth one sentence in the doc saying so and why, since people will ask.
+- **API surface**, if hosted: roughly schedule (build, publish, read), availability (submit, read), swaps (request, approve, apply), calendar (ICS per RA). Small.
+- **Calendar export** is the one v2 feature with a known shape: one ICS feed per RA, regenerated when a swap is approved, which is exactly the sync problem last year's note complains about.
+
+### Doc 3, design brief for Claude Design
+
+The brief should say what the product is for and who uses it, and leave the visual design open. Direction to settle with Shivam first:
+- **Two roles, two views.** Lead: build a schedule, review flags, publish, approve swaps. RA: my shifts, request a swap, export my calendar. Which is the primary screen for each?
+- **The schedule as a calendar, not a spreadsheet.** The xlsx stays as an export; the UI should show a month with shifts on it.
+- **Swaps as a workflow**: RA proposes, counterpart accepts, lead approves, schedule and calendars update. Three states, visible to all three people.
+- **The flags from the parser and preflight are a UI feature**, not just terminal output: "these 6 people have not submitted", "this person marked every weekday as a conflict", shown before the lead hits build.
+- Tone: this is an operations tool for student staff. Calm, fast, no dashboard theatre.
+- Constraint for Claude Design: real names never appear in mockups; use the R00-R42 style or invented names.
+
+Presentation content Shivam specified: a couple of non-technical backend slides (compress the walkthrough), then the UI: admin vs user, swaps, calendar export.
+
 ## Blocked
 
 - **Real data:** 7 of 43 responses in. Form closes 2026-08-27 at 11:59 pm. The parser is built and tested on the 7; the real run is Friday morning.
