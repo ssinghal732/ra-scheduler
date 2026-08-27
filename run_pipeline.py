@@ -1,10 +1,11 @@
 """End-to-end pipeline: grid -> availability -> solve -> roles -> validate -> xlsx.
 
 Usage:
-  python run_pipeline.py --grid <schedule.xlsx> --out <filled.xlsx> [--seed N]
+  python run_pipeline.py --grid <schedule.xlsx> --out <filled.xlsx> \
+      --roster <roster.xlsx> --availability <form-export.xlsx> [--sheet NAME] [--seed N]
 
-Availability is synthetic until the real form parser lands (Aug 27); swap in
-the real AvailabilityData there and nothing else changes.
+Omit --roster and --availability and the run uses invented people: the
+output filename is then forced to carry SYNTHETIC and says so.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from collections import defaultdict
 
 from ra_scheduler.grid import load_grid
 from ra_scheduler.synthetic import make_availability
+from ra_scheduler import parse_form
 from ra_scheduler import preflight
 from ra_scheduler.solver import solve
 from ra_scheduler.roles import assign_all_roles
@@ -26,6 +28,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--grid", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--roster", help="roster xlsx: Email | Name | Tier")
+    ap.add_argument("--availability", help="Google Form response export xlsx")
+    ap.add_argument("--sheet", help="sheet name inside the form export (default: first)")
     ap.add_argument("--seed", type=int, default=0, help="role-slotting seed")
     ap.add_argument("--preflight-lines", type=int, default=20,
                     help="how many preflight findings to print")
@@ -37,11 +42,27 @@ def main() -> int:
     print(f"[grid]      {len(shifts)} shifts, {sum(s.seats for s in shifts)} seats, "
           f"{len(holidays)} holiday rows, {shifts[0].date} -> {shifts[-1].date}")
 
-    # When the form parser lands, this becomes `args.availability is None`.
-    availability_is_synthetic = True
-    data = make_availability(shifts)  # <- replaced by the real parser on Aug 27
-    print(f"[avail]     {len(data.roster)} RAs "
-          f"({'SYNTHETIC, invented people' if availability_is_synthetic else 'from the form export'})")
+    availability_is_synthetic = args.availability is None
+    if availability_is_synthetic:
+        if args.roster:
+            print("[avail]     --roster given without --availability; using synthetic for both",
+                  file=sys.stderr)
+        data = make_availability(shifts)
+        print(f"[avail]     {len(data.roster)} RAs (SYNTHETIC, invented people)")
+    else:
+        if not args.roster:
+            print("[avail]     --availability needs --roster too", file=sys.stderr)
+            return 1
+        data, report = parse_form.load(args.roster, args.availability, shifts, sheet=args.sheet)
+        for k, v in report.matched.items():
+            print(f"[parse]     {k:16s} <- {v}")
+        print(f"[parse]     {report.summary()}")
+        for f in report.findings:
+            print("   ", f)
+        if report.must_stop:
+            print("[parse]     STOP findings above must be resolved before solving.", file=sys.stderr)
+            return 3
+        print(f"[avail]     {len(data.roster)} RAs from the form export")
 
     findings = preflight.check(shifts, data)
     print(f"[preflight] {preflight.summarize(findings)}")
