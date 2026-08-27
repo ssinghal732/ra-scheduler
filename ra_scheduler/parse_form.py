@@ -8,7 +8,10 @@ Two inputs:
   form xlsx     the Google Forms response sheet, one row per submission
 
 Decisions this encodes (all Shivam's, 2026-08-24 to 08-26):
-  - join on ucsd email, lowercased, never on names
+  - join on ucsd email first. If that fails, exact full name; if that fails,
+    a first name that matches exactly one roster entry. Each fallback FLAGs,
+    and if every one fails the run STOPs. (People turned out to have more than
+    one ucsd.edu address, so email alone was not the stable key it looked like.)
   - a blackout date is M/D or MM/DD read off the FRONT of each entry, entries
     split on newlines AND commas; anything without a leading date is reported,
     never guessed
@@ -275,6 +278,35 @@ def load_form(
     first, last = min(s.date for s in shifts), max(s.date for s in shifts)
     duty_dates = {s.date for s in shifts}
     by_email = {ra.ra_id: ra for ra in roster}
+    by_name = {_norm(ra.name).lower(): ra for ra in roster}
+    by_first: dict[str, list[RA]] = {}
+    for ra in roster:
+        by_first.setdefault(_norm(ra.name).lower().split()[0], []).append(ra)
+
+    def resolve(email: str, name: str) -> RA | None:
+        """Email, then full name, then unique first name. Flag every fallback."""
+        if email in by_email:
+            return by_email[email]
+        report.add(FLAG, email, "email is not on the roster; trying the name")
+        full = _norm(name).lower()
+        if full in by_name:
+            ra = by_name[full]
+            report.add(FLAG, email, f"matched by full name to roster entry {ra.ra_id}; "
+                                    f"the roster has a different email for this person")
+            return ra
+        fn = full.split()[0] if full else ""
+        hits = by_first.get(fn, [])
+        if len(hits) == 1:
+            report.add(FLAG, email, f"matched by first name only to {hits[0].ra_id}; "
+                                    f"the roster has a different email for this person")
+            return hits[0]
+        if len(hits) > 1:
+            report.add(STOP, email, f"first name {fn!r} matches {len(hits)} roster entries; "
+                                    f"cannot tell which. Fix the roster email.")
+        else:
+            report.add(STOP, email, f"not on the roster by email, full name, or first name "
+                                    f"(form name {name!r}). Add them or fix the roster.")
+        return None
 
     # --- one row per person: latest timestamp wins ---
     latest: dict[str, tuple] = {}
@@ -297,9 +329,13 @@ def load_form(
     blackouts: dict[str, set[date]] = {}
     prefs: dict[str, Preferences] = {}
 
-    for email, (_, r) in latest.items():
-        if email not in by_email:
-            report.add(FLAG, email, f"submitted but is not on the roster (name on form: {_norm(r[col['name']])!r})")
+    for form_email, (_, r) in latest.items():
+        ra = resolve(form_email, r[col["name"]])
+        if ra is None:
+            continue
+        email = ra.ra_id           # everything downstream keys on the ROSTER id
+        if email in available:
+            report.add(STOP, email, "two different form submissions resolved to this one roster entry")
             continue
 
         # weekday ranking: rank or conflict per day

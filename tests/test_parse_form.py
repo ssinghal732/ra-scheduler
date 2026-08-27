@@ -120,6 +120,103 @@ def test_report_stops_only_on_stop():
     assert r.summary() == "1 stop, 1 flag, 1 to read"
 
 
+
+# --------------------------------------------------------------------------- #
+# the join: email, then full name, then unique first name, flagging each step
+# --------------------------------------------------------------------------- #
+
+def _fixture(tmpdir, roster_rows, form_rows):
+    from openpyxl import Workbook
+    ro = Workbook(); ws = ro.active
+    ws.append(["Email", "Name", "Tier"])
+    for r in roster_rows: ws.append(list(r))
+    ro.save(f"{tmpdir}/roster.xlsx")
+    fo = Workbook(); ws = fo.active
+    Q = "Duty Weekdays ... [%s]"
+    ws.append(["Timestamp", "Email Address", "RA Name", "What time do your weekdays end?",
+               Q % "Monday", Q % "Tuesday", Q % "Wednesday", Q % "Thursday", Q % "Friday",
+               "Please identify ALL of the Weekday DATES you CANNOT do.",
+               "Any additional concerns related to Weekday Duty Scheduling",
+               "Duty Preferences - Weekend Shift Time Preferences",
+               "Please identify ALL of the DATES you CANNOT do. This includes weekdays AND weekends",
+               "Any additional concerns related to Weekend Duty Scheduling",
+               "Duty Preferences - Shift Location"])
+    for r in form_rows: ws.append(list(r))
+    fo.save(f"{tmpdir}/form.xlsx")
+    return f"{tmpdir}/roster.xlsx", f"{tmpdir}/form.xlsx"
+
+
+def _row(email, name):
+    from datetime import datetime
+    return (datetime(2026, 8, 26, 9), email, name, "free", 1.0, 2.0, 3.0, 4.0, 5.0,
+            "N/A", "No", "[Open] x", "N/A", "no", "I am open ... either")
+
+
+def _shifts():
+    from ra_scheduler.models import ShiftInstance
+    return [ShiftInstance(sid=0, date=date(2026, 10, 5), dow="Monday",
+                          shift="Evening (Weekday)", time="", rounds="", week="1")]
+
+
+def test_join_falls_back_to_full_name_and_flags_it():
+    import tempfile
+    from ra_scheduler import parse_form
+    ro, fo = _fixture(tempfile.mkdtemp(),
+                      [("alias@ucsd.edu", "Pat Rivera", "New")],
+                      [_row("privera@ucsd.edu", "Pat Rivera")])
+    data, rep = parse_form.load(ro, fo, _shifts())
+    assert "alias@ucsd.edu" in data.available, "should key on the ROSTER id after matching"
+    msgs = [f.message for f in rep.findings]
+    assert any("trying the name" in m for m in msgs)
+    assert any("matched by full name" in m for m in msgs)
+    assert not rep.must_stop
+
+
+def test_join_falls_back_to_unique_first_name():
+    import tempfile
+    from ra_scheduler import parse_form
+    ro, fo = _fixture(tempfile.mkdtemp(),
+                      [("alias@ucsd.edu", "Pat Rivera", "New"), ("x@ucsd.edu", "Sam Lee", "New")],
+                      [_row("privera@ucsd.edu", "Pat"), _row("x@ucsd.edu", "Sam Lee")])
+    data, rep = parse_form.load(ro, fo, _shifts())
+    assert "alias@ucsd.edu" in data.available
+    assert any("matched by first name only" in f.message for f in rep.findings)
+    assert not rep.must_stop
+
+
+def test_join_stops_when_first_name_is_ambiguous():
+    import tempfile
+    from ra_scheduler import parse_form
+    ro, fo = _fixture(tempfile.mkdtemp(),
+                      [("a@ucsd.edu", "Pat Rivera", "New"), ("b@ucsd.edu", "Pat Chen", "New")],
+                      [_row("other@ucsd.edu", "Pat"), _row("a@ucsd.edu", "Pat Rivera"), _row("b@ucsd.edu", "Pat Chen")])
+    _, rep = parse_form.load(ro, fo, _shifts())
+    assert rep.must_stop
+    assert any("matches 2 roster entries" in f.message for f in rep.findings)
+
+
+def test_join_stops_when_nothing_matches():
+    import tempfile
+    from ra_scheduler import parse_form
+    ro, fo = _fixture(tempfile.mkdtemp(),
+                      [("a@ucsd.edu", "Pat Rivera", "New")],
+                      [_row("a@ucsd.edu", "Pat Rivera"), _row("ghost@ucsd.edu", "Nobody Here")])
+    _, rep = parse_form.load(ro, fo, _shifts())
+    assert rep.must_stop
+    assert any("not on the roster by email, full name, or first name" in f.message for f in rep.findings)
+
+
+def test_two_submissions_resolving_to_one_person_stops():
+    import tempfile
+    from ra_scheduler import parse_form
+    ro, fo = _fixture(tempfile.mkdtemp(),
+                      [("a@ucsd.edu", "Pat Rivera", "New")],
+                      [_row("a@ucsd.edu", "Pat Rivera"), _row("alias@ucsd.edu", "Pat Rivera")])
+    _, rep = parse_form.load(ro, fo, _shifts())
+    assert rep.must_stop
+    assert any("two different form submissions resolved" in f.message for f in rep.findings)
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

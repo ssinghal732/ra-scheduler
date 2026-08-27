@@ -31,7 +31,7 @@ Built end to end and proven on synthetic availability in one day, 2026-08-24. Fo
 ## Next
 
 1. **Wait for the rest of the responses.** 7 of 43 are in as of 08-26 evening; the form closes 08-27 at 11:59 pm. The parser STOPs on every missing person by name, so the chase list is one run away at any point.
-2. **Resolve the 2 off-roster respondents.** Two people submitted with an email that is not on `RA Roster - Tiered.xlsx`. Either the roster email is wrong for them or they are not on it. Fix the roster, not the parser.
+2. **Fix the roster emails the parser flags.** Both off-roster respondents now join by name (people have more than one ucsd.edu address), and the parser FLAGs each one saying the roster has a different email. Update the roster so next quarter matches on email directly.
 3. **First real run, Friday 08-28.** Fix real conflicts as they surface. First check: can 17 experienced RAs cover the 24 returners-only seats given their real availability. Second check: every RA in the form matches a roster row keyed by ucsd email, and non-submitters are chased, not silently dropped.
 4. **Show the schedule, not the test results.** Before anyone trusts it, the supervising ADRL and the duty leads eyeball a real filled schedule. The validator saying zero violations is Claude grading homework Claude wrote; the leads reading actual rows is the evidence that counts. Lesson imported from the colony counter.
 5. **Tune the preference weights against real rankings.** The layer is built and passing; what is untested is how it behaves when rankings are lopsided. Synthetic rankings spread almost evenly (10/6/7/9/11 people per first-choice day) and produced 99%. If 20 real RAs all rank Friday first, the number falls and the interesting question becomes whether that is acceptable or whether the cost curve needs adjusting. Measure first, change nothing until then.
@@ -46,7 +46,7 @@ Built end to end and proven on synthetic availability in one day, 2026-08-24. Fo
 
 None that block the real run. Every design decision v1 needs has been made.
 
-- **Does the supervising ADRL expect to operate the tool themselves?** Decides whether a v2 UI gets built. Not a v1 question; parked until the solver is trusted on real data.
+
 - **Real experienced availability in the returners-only week.** 24 seats over 17 experienced RAs (the grid changed 08-26; it was 32). Only the data answers this. Friday's `[preflight]` line for `returners_only` is where to look.
 - **How lopsided are the real weekday rankings?** Decides whether task #4's cost curve needs tuning. Synthetic rankings spread nearly evenly; real ones may not. Measure after the first clean run, change nothing before.
 
@@ -79,6 +79,7 @@ Same seed plus same inputs gives the same schedule; reruns are reproducible, not
 
 ## Closed
 
+- **Who operates the tool.** Answered by Shivam 2026-08-26: the ADRLs and the duty leads will run it themselves. That makes the v2 UI a real item rather than a maybe, still gated on the solver being trusted on real data first.
 - **The Exceptions column.** Settled by Shivam 2026-08-26: it lists who cannot work that date, meaning a blackout date OR a class conflict. It stays as it is. The exporter had been writing blackout dates only; class conflicts are now included, read off availability so the column cannot disagree with the solver.
 - **Pairing-period length.** Was [TBD, ask ADRLs] in the spec since July. Settled: Sept 8-13 returners only, Sept 14-Oct 18 experienced+new pairing, which is exactly 4 duty weeks around the Sept 21-27 gap.
 - **Duty-date calendar.** Was an outstanding external input. Delivered as the grid xlsx, holidays included. Confirmed 2026-08-24 as the file the build uses: `~/Downloads/26-27 RA Duty Schedule.xlsx`, read cleanly by `grid.py`.
