@@ -182,6 +182,7 @@ Install only what the code in front of you imports.
 | `tests/test_parse_form.py` | Parser tests on the shapes seen in the first real responses. No real data in them. |
 | `tests/test_preferences.py` | Unit tests on the preference layer. The first one guards the fairness-beats-preferences property. |
 | `tests/test_preflight.py` | Unit tests on the pre-solve check. No ortools needed, so they run anywhere. |
+| `references/` | **Local only, gitignored.** Source material with real names in it: the conversation with last year's duty leads about how they built the schedule by hand, and the Apps Script they used for swaps. Read it, quote it by role, never commit it. |
 | `documents/how-the-pipeline-works.md` | Plain-language walkthrough of every module, written for a non-technical reader. Published as an artifact too; keep the two in step. |
 
 ---

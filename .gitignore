@@ -14,3 +14,7 @@ venv/
 
 # macOS
 .DS_Store
+
+# Reference material: prior conversations, screenshots, old scripts. Carries real
+# names, so it stays local and never enters the repo. See CLAUDE.md.
+references/
