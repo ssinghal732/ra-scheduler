@@ -44,13 +44,22 @@ def synthetic_path(path: str) -> str:
     return str(p.with_name(f"{p.stem}_{SYNTHETIC_TAG}{p.suffix}"))
 
 
-def _exceptions_by_date(data: AvailabilityData) -> dict[date, str]:
+def _exceptions_by_date(shifts: list[ShiftInstance], data: AvailabilityData) -> dict[date, str]:
+    """Who cannot work each date: a blackout date, or a class conflict that day.
+
+    Read straight off availability, which already has both subtracted, so the
+    column cannot disagree with what the solver was allowed to do.
+    """
     name_of = {ra.ra_id: ra.name for ra in data.roster}
-    out: dict[date, list[str]] = {}
-    for rid, days in data.blackout_dates.items():
-        for d in days:
-            out.setdefault(d, []).append(name_of[rid])
-    return {d: ", ".join(sorted(names)) for d, names in out.items()}
+    by_date: dict[date, list[ShiftInstance]] = {}
+    for s in shifts:
+        by_date.setdefault(s.date, []).append(s)
+    out: dict[date, str] = {}
+    for d, day_shifts in by_date.items():
+        cannot = [name_of[ra.ra_id] for ra in data.roster
+                  if not any(s.key in data.available.get(ra.ra_id, ()) for s in day_shifts)]
+        out[d] = ", ".join(sorted(cannot))
+    return out
 
 
 AVAIL_HEADERS = (
@@ -141,7 +150,7 @@ def write_schedule(
     sheet_name: str = "Fall Duty Schedule",
 ) -> None:
     name_of = {ra.ra_id: ra.name for ra in data.roster}
-    exceptions = _exceptions_by_date(data)
+    exceptions = _exceptions_by_date(shifts, data)
 
     # interleave duty rows and holiday rows in calendar order
     rows: list[tuple] = []
