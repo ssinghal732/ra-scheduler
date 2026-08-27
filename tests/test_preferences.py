@@ -178,3 +178,47 @@ if __name__ == "__main__":
             fn()
             print(f"ok  {name}")
     print("all tests passed")
+
+
+# --------------------------------------------------------------------------- #
+# Weekday / weekend balance (fairness, not preference)
+# --------------------------------------------------------------------------- #
+
+def _quarter(n_weekday=4, n_weekend=2):
+    """A small grid: weekday evenings (4 seats) plus weekend mornings (2 seats)."""
+    out, sid = [], 0
+    for i in range(n_weekday):
+        out.append(_shift("Evening (Weekday)", d=date(2026, 11, 2 + i), dow="Monday", sid=sid)); sid += 1
+    for i in range(n_weekend):
+        out.append(_shift("Morning", d=date(2026, 11, 7 + 7 * i), dow="Saturday", sid=sid)); sid += 1
+    return out
+
+
+def test_weekday_share_is_derived_from_the_grid():
+    from ra_scheduler.solver import _weekday_share
+    shifts = _quarter()                      # 4x4 weekday seats, 2x2 weekend seats
+    assert _weekday_share(shifts) == 16 / 20
+
+
+def test_a_ten_shift_returner_splits_five_and_five():
+    """Shivam's own example, on the real grid's 53.6% weekday share."""
+    assert round(10 * 0.536) == 5
+
+
+def test_balance_is_soft_and_never_blocks_a_weekend_only_RA():
+    """The reason the original 'no weekend-load term' decision existed.
+
+    Someone who cannot work weekdays at all must still be schedulable. If the
+    balance term were hard, their schedule would be impossible.
+    """
+    from ra_scheduler.solver import solve
+    shifts = _quarter()
+    roster = [RA(f"P{i}", f"P{i}", "new") for i in range(10)]
+    weekend_keys = {s.key for s in shifts if s.shift == "Morning"}
+    avail = {ra.ra_id: {s.key for s in shifts} for ra in roster}
+    avail["P0"] = set(weekend_keys)          # weekend-only, by class conflict
+    data = AvailabilityData(roster=roster, available=avail)
+
+    res = solve(shifts, data, time_limit_s=10)
+    assert res.feasible, f"weekend-only RA made it infeasible: {res.status}"
+    assert res.weekday_counts["P0"] == 0, "cannot work weekdays, must not be given any"

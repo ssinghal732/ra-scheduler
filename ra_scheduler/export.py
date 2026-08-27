@@ -56,7 +56,7 @@ def _exceptions_by_date(data: AvailabilityData) -> dict[date, str]:
 AVAIL_HEADERS = (
     "RA", "Tier", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
     "Dates they cannot work", "Weekend pref", "Desk pref",
-    "Shifts they could work", "Shifts assigned",
+    "Shifts they could work", "Shifts assigned", "Weekday / Weekend",
     "Weekday evenings they got", "On a 1st/2nd choice day",
 )
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
@@ -125,6 +125,7 @@ def _availability_rows(shifts, data: AvailabilityData, roles) -> list[tuple]:
             prefs.location or "either",
             len(free),
             assigned.get(ra.ra_id, 0),
+            f"{sum(days.values())} / {assigned.get(ra.ra_id, 0) - sum(days.values())}",
             day_text or "none",
             f"{got}/{tot}" if tot else "-",
         ))
@@ -202,13 +203,13 @@ def write_schedule(
         aw.append(row)
         for c in aw[aw.max_row]:
             c.font = body_font
-        for j in (11, 12, 14):
+        for j in (11, 12, 13, 15):
             aw.cell(aw.max_row, j).alignment = Alignment(horizontal="center")
         for j in range(3, 8):
             if aw.cell(aw.max_row, j).value == _UNAVAILABLE:
                 aw.cell(aw.max_row, j).fill = holiday_fill
     for col_cells, width in zip(aw.columns,
-                                (12, 11, 22, 22, 22, 22, 22, 32, 26, 12, 20, 16, 30, 22)):
+                                (12, 11, 22, 22, 22, 22, 22, 32, 26, 12, 20, 16, 18, 30, 22)):
         aw.column_dimensions[col_cells[0].column_letter].width = width
     aw.freeze_panes = "C2"
 

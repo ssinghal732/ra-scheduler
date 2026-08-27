@@ -76,6 +76,15 @@ def main() -> int:
     if errors:
         return 2
 
+    at_ideal = sum(1 for ra in data.roster
+                   if result.weekday_counts.get(ra.ra_id) == result.ideal_weekday[ra.tier])
+    print(f"[balance]   worst weekday/weekend imbalance {result.max_imbalance} shift(s); "
+          f"{at_ideal}/{len(data.roster)} RAs on their ideal mix")
+    for tname in ("LRA", "returner", "new"):
+        want = result.ideal_weekday[tname]
+        print(f"[balance]   {tname:9s} ideal {want} weekday / "
+              f"{result.targets[tname] - want} weekend")
+
     by_tier = defaultdict(list)
     for ra in data.roster:
         by_tier[ra.tier].append(result.counts[ra.ra_id])

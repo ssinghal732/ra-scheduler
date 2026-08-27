@@ -7,8 +7,9 @@ Hard rules (never violated):
 Soft objective, in priority order (all soft per F1 - only availability blocks):
   P1 training floor: every new RA >= TRAIN_FLOOR pairing-period shifts (Q1)
   P2 minimax fairness: minimize the largest |count - target| (F2)
-  P3 spread deviations; heavier weight pulls LRAs to their target (F3)
-  P4 preferences: weekday rank, weekend day, weekend time
+  P3 weekday/weekend balance: everyone's mix near the grid's own ratio
+  P4 spread deviations; heavier weight pulls LRAs to their target (F3)
+  P5 preferences: weekday rank, weekend day, weekend time
 
 P4 is a TIEBREAKER and nothing more. Shivam's call 2026-08-26: solve for
 fairness. The fairness terms are scaled by more than the worst possible total
@@ -25,7 +26,7 @@ roles.py. This module returns plain data and has no side effects.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from collections import defaultdict
 
 from ortools.sat.python import cp_model
@@ -44,9 +45,21 @@ from .models import (
     compute_targets,
 )
 
-TRAIN_FLOOR = 2          # Q1: minimum pairing-period shifts per new RA
-W_TRAIN, W_MAXDEV = 5000, 1000  # P1 > P2 > P3
-DEV_WEIGHT = {TIER_LRA: 3}      # F3: stronger pull to target for LRAs (default 1)
+TRAIN_FLOOR = 2                     # Q1: minimum pairing-period shifts per new RA
+W_TRAIN, W_MAXDEV, W_MAXIMB = 5000, 1000, 100   # P1 > P2 > P3
+W_IMBSUM = 1                        # spread of the weekday/weekend mix
+DEV_WEIGHT = {TIER_LRA: 3}          # F3: stronger pull to target for LRAs (default 1)
+
+
+def _weekday_share(shifts: list[ShiftInstance]) -> float:
+    """What fraction of the quarter's seats are weekday evenings.
+
+    Derived from the grid, not hardcoded: this quarter it is 240/448 = 53.6%,
+    which is why a 10-shift returner's balanced split comes out 5 and 5.
+    """
+    total = sum(s.seats for s in shifts)
+    weekday = sum(s.seats for s in shifts if s.shift == "Evening (Weekday)")
+    return weekday / total if total else 0.0
 
 
 def _preference_cost(shift: ShiftInstance, data: AvailabilityData, ra_id: str) -> int:
@@ -79,6 +92,9 @@ class SolveResult:
     max_deviation: int
     training_shortfalls: dict[str, int]   # new RAs below the floor -> missing shifts
     preference_cost: int = 0              # total soft-preference points paid
+    max_imbalance: int = 0                # worst weekday/weekend mix, shifts from ideal
+    weekday_counts: dict[str, int] = field(default_factory=dict)
+    ideal_weekday: dict[str, int] = field(default_factory=dict)   # tier -> ideal
 
     @property
     def feasible(self) -> bool:
@@ -138,6 +154,26 @@ def solve(
         m.Add(d <= max_dev)
         count_vars[ra.ra_id], dev_vars[ra.ra_id] = c, d
 
+    # P3: weekday/weekend balance (soft). An RA who cannot do weekdays at all
+    # legitimately ends up weekend-heavy, so this is a goal the solver abandons
+    # when availability will not allow it, never a rule.
+    share = _weekday_share(shifts)
+    ideal_weekday = {tier_name: round(target * share) for tier_name, target in targets.items()}
+    max_imb = m.NewIntVar(0, len(shifts), "max_imbalance")
+    wk_vars, imb_vars = {}, {}
+    for ra in data.roster:
+        wc = m.NewIntVar(0, len(shifts), f"weekday_{ra.ra_id}")
+        m.Add(wc == sum(
+            v for (rid, sid), v in x.items()
+            if rid == ra.ra_id and shifts[sid].shift == "Evening (Weekday)"
+        ))
+        imb = m.NewIntVar(0, len(shifts), f"imbalance_{ra.ra_id}")
+        want = ideal_weekday[ra.tier]
+        m.Add(wc - want <= imb)
+        m.Add(want - wc <= imb)
+        m.Add(imb <= max_imb)
+        wk_vars[ra.ra_id], imb_vars[ra.ra_id] = wc, imb
+
     # P1: training floor (soft)
     shortfall_vars = {}
     for ra in data.roster:
@@ -164,7 +200,9 @@ def solve(
         scale * (
             W_TRAIN * sum(shortfall_vars.values())
             + W_MAXDEV * max_dev
+            + W_MAXIMB * max_imb
             + sum(DEV_WEIGHT.get(tier[rid], 1) * d for rid, d in dev_vars.items())
+            + W_IMBSUM * sum(imb_vars.values())
         )
         + sum(pref_terms)
     )
@@ -194,4 +232,7 @@ def solve(
             _preference_cost(shifts[sid], data, rid)
             for (rid, sid), v in x.items() if sv.Value(v)
         ),
+        max_imbalance=sv.Value(max_imb),
+        weekday_counts={rid: sv.Value(w) for rid, w in wk_vars.items()},
+        ideal_weekday=ideal_weekday,
     )
