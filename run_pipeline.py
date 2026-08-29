@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import textwrap
 from collections import defaultdict
 
 from ra_scheduler.grid import load_grid
@@ -57,10 +58,26 @@ def main() -> int:
         for k, v in report.matched.items():
             print(f"[parse]     {k:16s} <- {v}")
         print(f"[parse]     {report.summary()}")
+        reads: dict[str, list[tuple[str, str]]] = {}
         for sev, label, fs in report.grouped():
+            if sev == parse_form.READ:
+                for f in fs:                      # gather; printed per person below
+                    box, _, text = f.message.partition(": ")
+                    reads.setdefault(f.who, []).append((box.replace(" concerns", ""), text))
+                continue
             print(f"    {sev}  {label}  ({len(fs)})")
             for f in fs:
                 print(f"        {f.who:28s} {f.message}")
+        if reads:
+            n = sum(len(v) for v in reads.values())
+            print(f"    READ  concerns boxes, read every one  ({n} from {len(reads)} people)")
+            for who in sorted(reads, key=str.lower):
+                print(f"        {who}")
+                for box, text in reads[who]:
+                    print(textwrap.fill(text, width=76,
+                                        initial_indent=f"          {box + ':':9s}",
+                                        subsequent_indent=" " * 19))
+                print()
         if report.must_stop:
             print("[parse]     STOP findings above must be resolved before solving.", file=sys.stderr)
             return 3
