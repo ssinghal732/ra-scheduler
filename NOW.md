@@ -16,6 +16,26 @@ Two threads run in parallel. The real data arrives during the day.
 
 **Standing answer to keep handy:** no LLM, no NLP. The parser handles every observed shape and flags the rest. A flagged unreadable date beats a confident wrong one. That sentence goes in the technical doc.
 
+## The first real run happened (2026-08-28)
+
+All 43 responses in, the leads' file `26-27 RA Duty Schedule (3).xlsx`, roster `RA Roster - Tiered.xlsx`. Output at `~/Downloads/fall_2026.xlsx` (real names; never enters the repo). `OPTIMAL`, 0 violations, 0 STOPs, 105 flags, 43 concerns boxes to read.
+
+| | |
+|---|---|
+| Fairness | LRA all 5; returners 10-11; new 10-11; max deviation 1 (targets 11/10/5 after the rounding fix) |
+| Balance | 40/43 on their ideal weekday/weekend mix; worst 1 |
+| Spread | 11 person-weeks over one shift; busiest week 3 |
+| Weekday 1st/2nd choice | **203/232 (88%)**, down from 99% on synthetic |
+| Weekend day+time | 183/198 (92%) |
+| Desk | 210/269 (78%) |
+| Rules, read from the file | 0 new RAs in the returners-only week; 28/28 pairing evenings mixed on both walks and both desks; 4 holiday rows; 440 names, all matched to a roster tier |
+
+**Why 88% and not 99%: the real rankings are lopsided, as predicted.** First choices: Monday 13, Tuesday 15, Wednesday 6, Thursday 9, Friday 3, against 48 seats a day (room for about 8.6 first choices each). Tuesday is oversubscribed almost 2:1; Wednesday has 12 class conflicts. 88% is what the grid allows before fairness gives, not a tuning miss. Task #4's question is answered by data.
+
+**24 of 43 roster emails are stale.** Two-thirds of respondents joined by name fallback because the form recorded a different ucsd.edu address. Every one is flagged with the roster's current email. Fix the roster before winter.
+
+**Shivam must read the 43 READ lines himself** (the concerns boxes; they hold the things no form captures) and then read the schedule rows. CC has not read the concerns text into this chat.
+
 ## Active
 
 **The whole v1 pipeline works (2026-08-24).** Grid reader, solver, role slotting, independent validator, xlsx exporter, CLI, 17 unit tests. On the real grid with synthetic availability: OPTIMAL in under 60s, 0 violations, max deviation 1 (LRA all 5, returners 10-11, new 11-12), every new RA at or above the 2-shift training floor, all 28 pairing-period evening shifts with mixed walk pairs. Committed to AICC as `6f792fc`.
@@ -44,9 +64,9 @@ Two threads run in parallel. The real data arrives during the day.
 
 ## Next
 
-1. **Wait for the rest of the responses.** 7 of 43 are in as of 08-26 evening; the form closes 08-27 at 11:59 pm. The parser STOPs on every missing person by name, so the chase list is one run away at any point.
-2. **Fix the roster emails the parser flags.** Both off-roster respondents now join by name (people have more than one ucsd.edu address), and the parser FLAGs each one saying the roster has a different email. Update the roster so next quarter matches on email directly.
-3. **First real run, Friday 08-28.** Fix real conflicts as they surface. First check: can 17 experienced RAs cover the 24 returners-only seats given their real availability. Second check: every RA in the form matches a roster row keyed by ucsd email, and non-submitters are chased, not silently dropped.
+1. ~~Wait for the rest of the responses.~~ Done: 43 of 43 by 08-28 morning.
+2. **Fix the roster emails the parser flags.** 24 of 43 joined by name fallback. Each flag names the person and the roster's stale email. Update the roster so next quarter matches on email directly.
+3. ~~First real run, Friday 08-28.~~ Done, see above. Preflight: 0 blocking, 0 tight; the returners-only week was never in danger. Second check: every RA in the form matches a roster row keyed by ucsd email, and non-submitters are chased, not silently dropped.
 4. **Show the schedule, not the test results.** Before anyone trusts it, the supervising ADRL and the duty leads eyeball a real filled schedule. The validator saying zero violations is Claude grading homework Claude wrote; the leads reading actual rows is the evidence that counts. Lesson imported from the colony counter.
 5. **Tune the preference weights against real rankings.** The layer is built and passing; what is untested is how it behaves when rankings are lopsided. Synthetic rankings spread almost evenly (10/6/7/9/11 people per first-choice day) and produced 99%. If 20 real RAs all rank Friday first, the number falls and the interesting question becomes whether that is acceptable or whether the cost curve needs adjusting. Measure first, change nothing until then.
 6. **Desk seating is done being tuned.** 78%, examined 2026-08-26. The greedy split was already optimal; pair selection added 8 seats. What remains is structural: 34 misses are people who want a game room seated on weekend Morning/Afternoon shifts, which have none. Fixing that means letting a desk wish override a day or time wish, which Shivam ruled against. Closed unless he reopens it.

@@ -35,6 +35,14 @@ The whole v1, planned and built in one session, three days before real data arri
 - **Four parser decisions locked.** Key on ucsd email, never names (only 4 of 45 names matched exactly last year). Blackout dates MM/DD only, chopped at position 5, since the new form specifies the shape and Shivam hand-checks before the parser runs. Non-submitters stop the run and get listed rather than defaulting to available or unavailable, because both defaults produce a plausible schedule built on someone the tool knows nothing about. No NLP: 43 hand-checked rows a quarter don't need it, and a regex that fails says so while a model guesses confidently.
 - **Documents folder added** (`94e8fd6`): a plain-language walkthrough of every module, also published as a shareable page.
 
+## 2026-08-28
+
+- **The first real schedule.** All 43 responses in. The pipeline read the leads' latest file and the roster, parsed every response (0 stops, 105 flags, 43 concerns boxes for a human), passed preflight with nothing blocking or tight, solved to OPTIMAL, validated with 0 violations, and wrote `fall_2026.xlsx`. Read back from the file: 0 new RAs in the returners-only week, 28 of 28 pairing evenings mixed on both walks and both desks, every LRA at 5, returners and new RAs at 10 or 11.
+- **Real preferences are lopsided, and the number says so.** 88% of weekday shifts on a first or second choice day, against 99% on synthetic. Tuesday drew 15 first choices for about 8.6 seats' worth; Friday drew 3; Wednesday has 12 class conflicts. That's the ceiling the grid allows before fairness gives, not a tuning problem.
+- **Targets now round to nearest.** Shivam read the run and saw LRAs at 6 against a target of 5. The old rule picked the largest baseline that fit under the seat count, leaving 39 spare seats on the 440 grid and pushing almost everyone to target+1. Nearest gives 11 / 10 / 5, one seat over.
+- **Findings name people.** Shivam knows names, not emails. Off-roster respondents show both.
+- **24 of 43 roster emails are stale.** Two-thirds of the staff have a different ucsd.edu address on the form than on the roster. The name fallback carried every one of them; each is flagged with the address to fix.
+
 ## 2026-08-27
 
 - **The conversation with last year's duty leads, read in full.** It went into `references/` (local only, real names) and it changed two things. It gave the product vision doc its spine: their process in their words, from the hidden randomization tabs to `9x + 10y = 43` to the yellow swap cells and the calendar files that never updated. And it listed four unwritten rules, three of which the solver did not have.
