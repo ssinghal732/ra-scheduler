@@ -57,8 +57,10 @@ def main() -> int:
         for k, v in report.matched.items():
             print(f"[parse]     {k:16s} <- {v}")
         print(f"[parse]     {report.summary()}")
-        for f in report.findings:
-            print("   ", f)
+        for sev, label, fs in report.grouped():
+            print(f"    {sev}  {label}  ({len(fs)})")
+            for f in fs:
+                print(f"        {f.who:28s} {f.message}")
         if report.must_stop:
             print("[parse]     STOP findings above must be resolved before solving.", file=sys.stderr)
             return 3

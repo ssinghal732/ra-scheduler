@@ -69,6 +69,45 @@ COLUMN_KEYS = {
 WEEKDAY_SUFFIX = re.compile(r"\[(Monday|Tuesday|Wednesday|Thursday|Friday)\]\s*$")
 
 STOP, FLAG, READ = "STOP", "FLAG", "READ"
+_SEVERITY_ORDER = {STOP: 0, FLAG: 1, READ: 2}
+
+# Every kind of finding, in the order it should print within its severity.
+# Most actionable first. Matched against the message text, so the message
+# wording and this table live in the same file and change together.
+KINDS = [
+    (STOP, "has not submitted",                 "on the roster but has not submitted"),
+    (STOP, "ALL FIVE weekdays",                 "marked every weekday as a class conflict"),
+    (STOP, "resolved to this one roster",       "two submissions matched one roster entry"),
+    (STOP, "matches",                           "first name matches more than one roster entry"),
+    (STOP, "not on the roster by email",        "not on the roster by email, full name, or first name"),
+    (STOP, "duplicate email",                   "roster: duplicate email"),
+    (STOP, "malformed email",                   "roster: malformed email"),
+    (STOP, "unrecognised tier",                 "roster: unrecognised tier"),
+    (FLAG, "the roster has",                    "roster email is stale; matched by name instead"),
+    (FLAG, "could not read a date",             "a date the parser could not read"),
+    (FLAG, "missing from the all-dates box",    "weekday box lists dates the all-dates box does not"),
+    (FLAG, "blackout dates (over",              "more than 10 blackout dates"),
+    (FLAG, "weekdays are class conflicts",      "3 or 4 of 5 weekdays are class conflicts"),
+    (FLAG, "used more than once",               "same rank used for more than one day"),
+    (FLAG, "picked [Open] AND",                 "weekend: [Open] plus a specific day"),
+    (FLAG, "outside the quarter",               "blackout dates outside the quarter, ignored"),
+    (FLAG, "have no duty anyway",               "blackout dates on days with no duty, harmless"),
+    (FLAG, "submitted more than once",          "submitted more than once; later one kept"),
+    (FLAG, "neither a rank nor a conflict",     "weekday cell is neither a rank nor a conflict"),
+    (FLAG, "outside 1-5",                       "rank outside 1 to 5, ignored"),
+    (FLAG, "needed lowercasing",                "roster email needed lowercasing / trimming"),
+    (FLAG, "no email",                          "a row with no email was skipped"),
+    (READ, "weekday concerns",                  "weekday concerns box"),
+    (READ, "weekend concerns",                  "weekend concerns box"),
+]
+
+
+def kind_of(f: "Finding") -> tuple[int, str]:
+    """(sort position, label) for a finding, from its message."""
+    for i, (sev, needle, label) in enumerate(KINDS):
+        if f.severity == sev and needle in f.message:
+            return i, label
+    return len(KINDS), "other"
 
 
 @dataclass(frozen=True)
@@ -100,6 +139,20 @@ class ParseReport:
     def summary(self) -> str:
         n = {s: sum(1 for f in self.findings if f.severity == s) for s in (STOP, FLAG, READ)}
         return f"{n[STOP]} stop, {n[FLAG]} flag, {n[READ]} to read"
+
+    def grouped(self) -> list[tuple[str, str, list["Finding"]]]:
+        """Findings as (severity, kind label, findings), STOP first, then FLAG,
+        then READ; within a severity, most actionable kind first; within a
+        kind, by name. This is what the pipeline prints."""
+        buckets: dict[tuple[int, int, str], list[Finding]] = {}
+        for f in self.findings:
+            pos, label = kind_of(f)
+            buckets.setdefault((_SEVERITY_ORDER[f.severity], pos, label), []).append(f)
+        out = []
+        for (sev_i, _, label), fs in sorted(buckets.items()):
+            sev = [s for s, i in _SEVERITY_ORDER.items() if i == sev_i][0]
+            out.append((sev, label, sorted(fs, key=lambda f: f.who.lower())))
+        return out
 
 
 class ParseError(ValueError):
@@ -293,18 +346,17 @@ def load_form(
         if email in by_email:
             return by_email[email]
         who = f"{_norm(name) or '(no name)'} <{email}>"     # not on the roster: show both
-        report.add(FLAG, who, "email is not on the roster; trying the name")
         full = _norm(name).lower()
         if full in by_name:
             ra = by_name[full]
-            report.add(FLAG, who, f"matched by full name to {ra.name} on the roster; "
+            report.add(FLAG, who, f"email not on the roster; matched by full name. "
                                   f"the roster has {ra.ra_id} for them, update it")
             return ra
         fn = full.split()[0] if full else ""
         hits = by_first.get(fn, [])
         if len(hits) == 1:
-            report.add(FLAG, who, f"matched by first name only to {hits[0].name} on the roster; "
-                                  f"the roster has {hits[0].ra_id} for them, update it")
+            report.add(FLAG, who, f"email not on the roster; matched by first name only to "
+                                  f"{hits[0].name}. the roster has {hits[0].ra_id} for them, update it")
             return hits[0]
         if len(hits) > 1:
             report.add(STOP, who, f"first name {fn!r} matches {len(hits)} roster entries; "

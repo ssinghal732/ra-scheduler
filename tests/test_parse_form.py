@@ -111,6 +111,18 @@ def test_location_by_keyword():
 # the report
 # --------------------------------------------------------------------------- #
 
+def test_grouped_orders_stop_then_flag_then_read_and_names_kinds():
+    r = ParseReport()
+    r.add(READ, "zed", "weekday concerns: x")
+    r.add(FLAG, "amy", "12 blackout dates (over 10)")
+    r.add(STOP, "bob", "on the roster (new) but has not submitted the form")
+    r.add(FLAG, "cal", "13 blackout dates (over 10)")
+    g = r.grouped()
+    assert [sev for sev, _, _ in g] == [STOP, FLAG, READ]
+    assert g[1][1] == "more than 10 blackout dates" and len(g[1][2]) == 2
+    assert [f.who for f in g[1][2]] == ["amy", "cal"]          # by name within a kind
+
+
 def test_report_stops_only_on_stop():
     r = ParseReport()
     r.add(FLAG, "x", "a"); r.add(READ, "y", "b")
@@ -167,7 +179,6 @@ def test_join_falls_back_to_full_name_and_flags_it():
     data, rep = parse_form.load(ro, fo, _shifts())
     assert "alias@ucsd.edu" in data.available, "should key on the ROSTER id after matching"
     msgs = [f.message for f in rep.findings]
-    assert any("trying the name" in m for m in msgs)
     assert any("matched by full name" in m for m in msgs)
     assert not rep.must_stop
 
