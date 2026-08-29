@@ -85,7 +85,6 @@ KINDS = [
     (STOP, "unrecognised tier",                 "roster: unrecognised tier"),
     (FLAG, "the roster has",                    "roster email is stale; matched by name instead"),
     (FLAG, "could not read a date",             "a date the parser could not read"),
-    (FLAG, "missing from the all-dates box",    "weekday box lists dates the all-dates box does not"),
     (FLAG, "blackout dates (over",              "more than 10 blackout dates"),
     (FLAG, "weekdays are class conflicts",      "3 or 4 of 5 weekdays are class conflicts"),
     (FLAG, "used more than once",               "same rank used for more than one day"),
@@ -423,11 +422,7 @@ def load_form(
         all_dates, bad2 = parse_dates(r[col["all_dates"]], year)
         for frag in bad1 + bad2:
             report.add(FLAG, email, f"could not read a date from {frag[:40]!r}")
-        only_in_wk = wk_dates - all_dates
-        if only_in_wk:
-            report.add(FLAG, email, f"{len(only_in_wk)} date(s) in the weekday box are missing "
-                                    f"from the all-dates box; unioned")
-        black = wk_dates | all_dates
+        black = wk_dates | all_dates          # both boxes count; disagreement is not a finding
         outside = {d for d in black if not first <= d <= last}
         if outside:
             report.add(FLAG, email, f"{len(outside)} blackout date(s) fall outside the quarter, e.g. "
