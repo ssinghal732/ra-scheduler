@@ -85,9 +85,13 @@ class Finding:
 class ParseReport:
     matched: dict[str, str] = field(default_factory=dict)   # field -> header it matched
     findings: list[Finding] = field(default_factory=list)
+    names: dict[str, str] = field(default_factory=dict)     # email -> display name
 
     def add(self, severity: str, who: str, message: str) -> None:
-        self.findings.append(Finding(severity, who, message))
+        """Findings name people, not emails: Shivam knows names by heart, not
+        addresses. `who` may be an email; it is shown as the roster name when
+        the roster knows it."""
+        self.findings.append(Finding(severity, self.names.get(who, who), message))
 
     @property
     def must_stop(self) -> bool:
@@ -196,6 +200,7 @@ def load_roster(path: str, report: ParseReport) -> list[RA]:
         if "@" not in email:
             report.add(STOP, "roster", f"malformed email {email!r}")
             continue
+        report.names[email] = name or email
         if _norm(r[col["email"]]) != email:
             report.add(FLAG, email, "roster email needed lowercasing / trimming to match")
         tier = _TIER_WORDS.get(tier_raw.lower().split()[0] if tier_raw else "")
@@ -287,25 +292,26 @@ def load_form(
         """Email, then full name, then unique first name. Flag every fallback."""
         if email in by_email:
             return by_email[email]
-        report.add(FLAG, email, "email is not on the roster; trying the name")
+        who = f"{_norm(name) or '(no name)'} <{email}>"     # not on the roster: show both
+        report.add(FLAG, who, "email is not on the roster; trying the name")
         full = _norm(name).lower()
         if full in by_name:
             ra = by_name[full]
-            report.add(FLAG, email, f"matched by full name to roster entry {ra.ra_id}; "
-                                    f"the roster has a different email for this person")
+            report.add(FLAG, who, f"matched by full name to {ra.name} on the roster; "
+                                  f"the roster has {ra.ra_id} for them, update it")
             return ra
         fn = full.split()[0] if full else ""
         hits = by_first.get(fn, [])
         if len(hits) == 1:
-            report.add(FLAG, email, f"matched by first name only to {hits[0].ra_id}; "
-                                    f"the roster has a different email for this person")
+            report.add(FLAG, who, f"matched by first name only to {hits[0].name} on the roster; "
+                                  f"the roster has {hits[0].ra_id} for them, update it")
             return hits[0]
         if len(hits) > 1:
-            report.add(STOP, email, f"first name {fn!r} matches {len(hits)} roster entries; "
-                                    f"cannot tell which. Fix the roster email.")
+            report.add(STOP, who, f"first name {fn!r} matches {len(hits)} roster entries; "
+                                  f"cannot tell which. Fix the roster email.")
         else:
-            report.add(STOP, email, f"not on the roster by email, full name, or first name "
-                                    f"(form name {name!r}). Add them or fix the roster.")
+            report.add(STOP, who, "not on the roster by email, full name, or first name. "
+                                  "Add them or fix the roster.")
         return None
 
     # --- one row per person: latest timestamp wins ---

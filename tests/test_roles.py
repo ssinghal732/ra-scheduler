@@ -71,8 +71,19 @@ def test_targets_match_locked_decisions():
     roster = ([RA(f"L{i}", f"L{i}", "LRA") for i in range(3)]
               + [RA(f"R{i}", f"R{i}", "returner") for i in range(14)]
               + [RA(f"N{i}", f"N{i}", "new") for i in range(26)])
-    t = compute_targets(448, roster)  # this quarter's seat count
+    t = compute_targets(448, roster)  # the grid as first measured
     assert t == {"new": 11, "returner": 10, "LRA": 5}  # D3 + F3
+
+
+def test_targets_round_to_nearest_not_under():
+    """440 seats: fitting under gives 10/9/5 with 39 seats spare and the LRAs
+    pushed to 6. Nearest gives 11/10/5, one seat over, which is what the leads
+    mean by 'n, n-1, half'. (Shivam, 2026-08-28.)"""
+    roster = ([RA(f"L{i}", f"L{i}", "LRA") for i in range(3)]
+              + [RA(f"R{i}", f"R{i}", "returner") for i in range(14)]
+              + [RA(f"N{i}", f"N{i}", "new") for i in range(26)])
+    assert compute_targets(440, roster) == {"new": 11, "returner": 10, "LRA": 5}
+    assert compute_targets(401, roster) == {"new": 10, "returner": 9, "LRA": 5}  # exact fit
 
 
 if __name__ == "__main__":

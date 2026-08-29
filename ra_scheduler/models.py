@@ -176,16 +176,27 @@ class AvailabilityData:
 def compute_targets(total_seats: int, roster: list[RA]) -> dict[str, int]:
     """Derive per-tier shift targets from this quarter's seat count.
 
-    Picks the largest baseline B whose implied total does not exceed the seats;
-    the soft minimax objective absorbs the remainder as +1s. Derived (not
-    hardcoded) so the same code is right if the grid ever changes.
+    new = B, returner = B - 1, LRA = B // 2. Picks the B whose implied total is
+    CLOSEST to the seat count, over or under; the soft minimax objective absorbs
+    the difference as a few +1s or -1s. Derived (not hardcoded) so the same code
+    is right if the grid ever changes.
+
+    Why closest and not "largest that fits under": on a 440-seat grid, fitting
+    under gives 10 / 9 / 5 with 39 seats left over, so 39 of 43 people sit at
+    target+1 and the LRAs land on 6. Closest gives 11 / 10 / 5, one seat over,
+    so one person sits at -1 and the targets read the way the leads expect.
+    (Shivam, 2026-08-28.)
     """
     n = {t: sum(1 for r in roster if r.tier == t) for t in (TIER_NEW, TIER_RETURNER, TIER_LRA)}
-    b = 1
-    while True:
-        implied = n[TIER_NEW] * (b + 1) + n[TIER_RETURNER] * b + n[TIER_LRA] * ((b + 1) // 2)
-        if implied > total_seats:
-            break
+
+    def implied(b: int) -> int:
+        return n[TIER_NEW] * b + n[TIER_RETURNER] * (b - 1) + n[TIER_LRA] * (b // 2)
+
+    best, best_gap = 1, abs(implied(1) - total_seats)
+    b = 2
+    while implied(b) - total_seats <= best_gap:      # stop once overshoot beats the best gap
+        gap = abs(implied(b) - total_seats)
+        if gap < best_gap:
+            best, best_gap = b, gap
         b += 1
-    baseline = b  # b+1 overshot, so new = b, returner = b-1
-    return {TIER_NEW: baseline, TIER_RETURNER: baseline - 1, TIER_LRA: baseline // 2}
+    return {TIER_NEW: best, TIER_RETURNER: best - 1, TIER_LRA: best // 2}
