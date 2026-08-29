@@ -29,10 +29,12 @@ python run_pipeline.py ... --seed N            # role-slotting seed; same inputs
 The roster is a three-column sheet, `Email | Name | Tier`, with tier one of LRA /
 Returner / New. The form export is the Google Forms response sheet downloaded as xlsx.
 
-The parser prints which column it matched to each field, then a findings report.
-**STOP** findings halt the run (someone on the roster has not submitted, or marked all
-five weekdays as conflicts). **FLAG** findings print and continue. **READ** findings
-are the free-text concerns boxes, printed in full for a human to read before solving.
+The parser prints which column it matched to each field, then a findings report
+grouped by severity and kind, people named not emailed. **STOP** findings halt the run
+(someone on the roster has not submitted, or marked all five weekdays as conflicts;
+there is deliberately no override). **FLAG** findings print and continue, most
+actionable kind first. **READ** findings are the free-text concerns boxes, printed per
+person and wrapped, for a human to read before solving.
 
 ## Modules
 
@@ -66,22 +68,18 @@ are the free-text concerns boxes, printed in full for a human to read before sol
   flags everything else for a human. A flagged unreadable date beats a confident
   wrong one, and 43 rows a quarter do not need a model.
 
-## Status (2026-08-26)
+## Status (2026-08-28)
 
-Every module is built and tested. The solver honours fairness first (total shifts,
-then weekday/weekend mix), then all four preferences the form collects (weekday
-rank, weekend day, weekend time, desk), then randomises what is left. On the real
-grid with synthetic availability: `OPTIMAL`, 0 violations, max deviation 1, 38 of 43
-RAs on their ideal weekday/weekend mix, 99% of weekday shifts on a first or second
-choice day.
+The first real schedule is built. All 43 responses parsed with 0 stops; preflight
+clean; `OPTIMAL`; 0 violations; every lead RA at 5, returners and new RAs at 10 or 11;
+40 of 43 on their ideal weekday/weekend split; 88% of weekday shifts on a first or
+second choice day, which is the ceiling the real rankings allow (Tuesday was wanted
+nearly two to one). Rules verified by reading the output file, not by trusting the
+validator.
 
-The parser has been run on the first 7 real responses: every column matched, every
-availability key it produced matches a real shift, and two respondents whose email
-differed from the roster joined by name with a flag. The real run happens once the
-form closes and everyone has submitted.
-
-Next: three product documents (vision, technical design, and a design brief), and
-then a v2 with a UI for the duty leads and RAs, swaps, and calendar export.
+Three product documents are in `documents/`: a vision doc for the duty leads, a
+technical design, and a design brief. The v2 direction is being reconsidered in favour
+of Google Sheets integration over a hosted website.
 
 ## Data
 

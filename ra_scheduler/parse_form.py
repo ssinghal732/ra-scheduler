@@ -87,7 +87,6 @@ KINDS = [
     (FLAG, "could not read a date",             "a date the parser could not read"),
     (FLAG, "blackout dates (over",              "more than 10 blackout dates"),
     (FLAG, "weekdays are class conflicts",      "3 or 4 of 5 weekdays are class conflicts"),
-    (FLAG, "used more than once",               "same rank used for more than one day"),
     (FLAG, "picked [Open] AND",                 "weekend: [Open] plus a specific day"),
     (FLAG, "outside the quarter",               "blackout dates outside the quarter, ignored"),
     (FLAG, "have no duty anyway",               "blackout dates on days with no duty, harmless"),
@@ -96,6 +95,7 @@ KINDS = [
     (FLAG, "outside 1-5",                       "rank outside 1 to 5, ignored"),
     (FLAG, "needed lowercasing",                "roster email needed lowercasing / trimming"),
     (FLAG, "no email",                          "a row with no email was skipped"),
+    (FLAG, "used more than once",               "same rank on more than one day, both taken at face value"),
     (READ, "weekday concerns",                  "weekday concerns box"),
     (READ, "weekend concerns",                  "weekend concerns box"),
 ]
