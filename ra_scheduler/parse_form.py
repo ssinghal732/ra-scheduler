@@ -88,12 +88,9 @@ KINDS = [
     (FLAG, "blackout dates (over",              "more than 10 blackout dates"),
     (FLAG, "weekdays are class conflicts",      "3 or 4 of 5 weekdays are class conflicts"),
     (FLAG, "picked [Open] AND",                 "weekend: [Open] plus a specific day"),
-    (FLAG, "outside the quarter",               "blackout dates outside the quarter, ignored"),
-    (FLAG, "have no duty anyway",               "blackout dates on days with no duty, harmless"),
     (FLAG, "submitted more than once",          "submitted more than once; later one kept"),
     (FLAG, "neither a rank nor a conflict",     "weekday cell is neither a rank nor a conflict"),
     (FLAG, "outside 1-5",                       "rank outside 1 to 5, ignored"),
-    (FLAG, "needed lowercasing",                "roster email needed lowercasing / trimming"),
     (FLAG, "no email",                          "a row with no email was skipped"),
     (FLAG, "used more than once",               "same rank on more than one day, both taken at face value"),
     (READ, "weekday concerns",                  "weekday concerns box"),
@@ -253,8 +250,6 @@ def load_roster(path: str, report: ParseReport) -> list[RA]:
             report.add(STOP, "roster", f"malformed email {email!r}")
             continue
         report.names[email] = name or email
-        if _norm(r[col["email"]]) != email:
-            report.add(FLAG, email, "roster email needed lowercasing / trimming to match")
         tier = _TIER_WORDS.get(tier_raw.lower().split()[0] if tier_raw else "")
         if tier is None:
             report.add(STOP, email, f"unrecognised tier {tier_raw!r} (want LRA / Returner / New)")
@@ -423,14 +418,7 @@ def load_form(
         for frag in bad1 + bad2:
             report.add(FLAG, email, f"could not read a date from {frag[:40]!r}")
         black = wk_dates | all_dates          # both boxes count; disagreement is not a finding
-        outside = {d for d in black if not first <= d <= last}
-        if outside:
-            report.add(FLAG, email, f"{len(outside)} blackout date(s) fall outside the quarter, e.g. "
-                                    f"{min(outside):%m/%d}; ignored")
-            black -= outside
-        idle = {d for d in black if d not in duty_dates}
-        if idle:
-            report.add(FLAG, email, f"{len(idle)} blackout date(s) have no duty anyway, e.g. {min(idle):%m/%d}")
+        black = {d for d in black if first <= d <= last}   # outside the quarter: silently ignored
         if len(black) > MAX_BLACKOUTS_BEFORE_FLAG:
             report.add(FLAG, email, f"{len(black)} blackout dates (over {MAX_BLACKOUTS_BEFORE_FLAG})")
 

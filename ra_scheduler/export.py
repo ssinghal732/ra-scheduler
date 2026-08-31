@@ -182,6 +182,23 @@ def write_schedule(
         c.font, c.fill = header_font, header_fill
         c.alignment = Alignment(horizontal="center")
 
+    # Side table, columns L-O, same format as the leads' template: one row per
+    # RA under the header with their shift count ("Numbers") and desk preference.
+    side = sorted(data.roster, key=lambda ra: ra.name.lower())
+    assigned: dict[str, int] = {}
+    for table in roles.values():
+        for rid in table.values():
+            assigned[rid] = assigned.get(rid, 0) + 1
+    for j, htxt in enumerate(("Notes", "Returning RA", "Numbers", "Preferences")):
+        cell = ws.cell(1, 12 + j, htxt)
+        cell.font, cell.fill = header_font, header_fill
+        cell.alignment = Alignment(horizontal="center")
+    for i, ra in enumerate(side):
+        prefs = data.prefs(ra.ra_id)
+        ws.cell(2 + i, 13, ra.name).font = body_font
+        ws.cell(2 + i, 14, assigned.get(ra.ra_id, 0)).font = body_font
+        ws.cell(2 + i, 15, prefs.location or "Open").font = body_font
+
     prev_week, prev_date = None, None
     for (d, _, week, dow, shift, time, fdp, fds, grp, grs, rounds) in rows:
         ws.append((
@@ -197,7 +214,7 @@ def write_schedule(
                 c.fill = holiday_fill
         prev_week, prev_date = week, d
 
-    for col_cells, width in zip(ws.columns, (6, 12, 14, 18, 11, 17, 17, 17, 17, 26, 40)):
+    for col_cells, width in zip(ws.columns, (6, 12, 14, 18, 11, 17, 17, 17, 17, 26, 40, 10, 22, 9, 12)):
         ws.column_dimensions[col_cells[0].column_letter].width = width
     ws.freeze_panes = "A2"
 

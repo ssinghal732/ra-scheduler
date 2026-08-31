@@ -35,6 +35,12 @@ The whole v1, planned and built in one session, three days before real data arri
 - **Four parser decisions locked.** Key on ucsd email, never names (only 4 of 45 names matched exactly last year). Blackout dates MM/DD only, chopped at position 5, since the new form specifies the shape and Shivam hand-checks before the parser runs. Non-submitters stop the run and get listed rather than defaulting to available or unavailable, because both defaults produce a plausible schedule built on someone the tool knows nothing about. No NLP: 43 hand-checked rows a quarter don't need it, and a regex that fails says so while a model guesses confidently.
 - **Documents folder added** (`94e8fd6`): a plain-language walkthrough of every module, also published as a shareable page.
 
+## 2026-08-31
+
+- **The export now fills the template's side table**: Notes / Returning RA / Numbers / Preferences columns beside the schedule, one row per RA with their shift count and desk preference, matching how the leads' sheet has always carried it.
+- **Three flags removed at Shivam's call**: blackout dates outside the quarter (silently ignored now), blackout dates on days with no duty, and roster-email-needed-lowercasing. The duplicate-rank flag moved to the bottom earlier; the findings list now only says things someone would act on.
+- **The 43 concerns boxes triaged**, by Claude reading them one-off, not by NLP in the parser; the no-NLP decision stands. Output is a local HTML for Shivam (real names, outside the repo) with every hard-looking item checked against the built schedule.
+
 ## 2026-08-28
 
 - **Findings grouped by severity, then by kind, with counts.** 105 flags printed person by person had no shape. Now STOP, then FLAG in order of how actionable, then READ, each kind with a header and a count and names sorted inside. The name-fallback pair collapsed to one line per person (105 became 80). Shivam then dropped the "weekday box disagrees with the all-dates box" flag (the union already handles it; 68 left) and moved the duplicate-rank flag to the bottom, since a duplicate rank just means two days the person likes equally and the solver takes it at face value.
