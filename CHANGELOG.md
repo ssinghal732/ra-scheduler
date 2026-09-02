@@ -35,6 +35,13 @@ The whole v1, planned and built in one session, three days before real data arri
 - **Four parser decisions locked.** Key on ucsd email, never names (only 4 of 45 names matched exactly last year). Blackout dates MM/DD only, chopped at position 5, since the new form specifies the shape and Shivam hand-checks before the parser runs. Non-submitters stop the run and get listed rather than defaulting to available or unavailable, because both defaults produce a plausible schedule built on someone the tool knows nothing about. No NLP: 43 hand-checked rows a quarter don't need it, and a regex that fails says so while a model guesses confidently.
 - **Documents folder added** (`94e8fd6`): a plain-language walkthrough of every module, also published as a shareable page.
 
+## 2026-09-01
+
+- **The 43 concerns boxes, fully triaged and checked against the built schedule.** Seven hard constraints were hiding in free text (no Saturdays, no Sunday mornings for three people, no Sunday evenings, no Saturday evenings, no Wednesday or Friday weekday duty, no Wednesday duty). Six are already respected in the draft; one person sits on two Saturday evenings (11/14, 12/12) that must move. One comment contradicts its own checkbox on weekend mornings. Two people need to be asked for exact dates. Triage lives at `~/Downloads/concerns_triage.html`, local only.
+- **A digest for the duty leads**, plain text for Teams: `~/Downloads/constraints_for_leads.txt`. Firm can't-dos, the two questions to ask, and the worth-knowing notes.
+- **The no-NLP line was challenged and held, with a boundary.** Shivam asked why not put a model in the parser. The defense: silent wrongness is the one failure class the pipeline doesn't have; checking model output costs the same reading as doing it by hand; reproducibility is promised to the leads in writing; seven material comments a quarter don't justify an API dependency that outlives the author. The boundary that stands: a model may propose, only a file a human approved may constrain. The triage above is that boundary in use.
+- **Open:** how the two Saturday evenings get fixed. Hand-swap in the sheet, or a small exclusions input the parser subtracts and flags on every run. The exclusions file is where the leads' answers would land too.
+
 ## 2026-08-31
 
 - **The export now fills the template's side table**: Notes / Returning RA / Numbers / Preferences columns beside the schedule, one row per RA with their shift count and desk preference, matching how the leads' sheet has always carried it.

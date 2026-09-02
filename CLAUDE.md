@@ -14,7 +14,7 @@ AiCC area: `technical-projects`. Boot it explicitly, since the default area is `
 
 The build is Technical Projects work. The duty-scheduling domain facts (what a duty walk is, who the duty leads are, RA training dates) belong to the `resident-assistant` lane, but this project stays here. Same routing as the colony counter: role-grown context lives in its lane, big builds live here.
 
-Then NOW.md, then a skim of CHANGELOG.md, then `git log --oneline -10`, then ask Shivam what he wants to work on. **If it is 2026-08-27 or soon after: NOW.md has a "Tomorrow" section at the top with the plan Shivam set. Start there.**
+Then NOW.md, then a skim of CHANGELOG.md, then `git log --oneline -10`, then ask Shivam what he wants to work on. **NOW.md opens with a "Next session starts here" block. Start there.**
 
 ---
 

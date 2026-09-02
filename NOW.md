@@ -6,21 +6,17 @@ RA Scheduler: fills the Seventh College quarterly duty schedule (440 seats, 136 
 
 Built end to end 2026-08-24, extended through 2026-08-26 (preferences, balance, parser, all verified on real partial data). Form closes 2026-08-27 at 11:59 pm; complete response set exists 2026-08-28. Product docs start 2026-08-27.
 
-## Tomorrow, 2026-08-27 (set by Shivam the night before)
+## Next session starts here (updated 2026-09-02)
 
-Two threads run in parallel. The real data arrives during the day.
+**Waiting on people, not code.** The leads digest (`~/Downloads/constraints_for_leads.txt`) is ready for Shivam to send on Teams. It names the one conflict (two Saturday evenings on 11/14 and 12/12 that must move) and the two questions (exact flight-home dates; the weekend-mornings contradiction).
 
-**Thread 1, the real run.** The form closes 08-27 at 11:59 pm, so a complete set exists Friday morning; partials are useful all day. Steps, in order: export the response sheet, run the command in the README, read the `[parse]` STOPs (the chase list, by name and tier) and READs (the concerns boxes to hand-encode), fix what needs fixing, run again. When it solves: `[preflight]` returners-only first (17 experienced against 24 seats with real availability), then `[balance]`, then `[prefs]`. Then open the xlsx and read rows. Two off-roster respondents now join by name with a FLAG; fix the roster afterwards, not before.
+Decisions pending, all Shivam's:
+1. **Exclusions input, or hand-swap?** Seven hard constraints from the concerns boxes need a permanent home or every rerun reintroduces the Saturday-evenings conflict. CC recommends the exclusions file (~15 lines: person + day + shift subtracted from availability, flagged every run); it is also where the leads' answers would land.
+2. **Task #6: Google Sheets vs website for v2.** Discussion still not had. Docs 2 and 3 wait on it.
+3. Fix the 25 stale roster emails before winter (each flag names the address).
+4. Hours for 08-31 and 09-01 not logged.
 
-**Thread 2, the three product docs.** AiCC task #5. Full headstart below under "The three product docs". Order that works: vision doc first (no dependencies, and writing it in plain English settles what the thing is), then the five forks, then the technical doc and the design brief together. The design brief goes to Claude Design, which produces a presentation; CC's job is the direction discussion beforehand, not the visuals.
-
-**Standing answer to keep handy:** no LLM, no NLP. The parser handles every observed shape and flags the rest. A flagged unreadable date beats a confident wrong one. That sentence goes in the technical doc.
-
-## Next session starts here (set 2026-08-28, late)
-
-**Discuss, do not build: Google Sheets instead of a website for v2.** AiCC task #6 has the questions and one recommendation to bring. Shivam's reason: running a website will be hard (hosting, FERPA off campus, sign-in, succession, all of which the technical design already listed as open). The leads live in Sheets, the data already lives in UCSD's Workspace, the swap Apps Script exists, and there is no server to own. The solver stays Python on a laptop; the question is what reads and writes the sheet and what Apps Script does. Both the technical design and the design brief assume a website and will need a Sheets-first pass after the discussion. The vision doc's "Where this is going" needs a lighter touch.
-
-Also queued for Shivam: read the 43 concerns boxes and rerun; fix the 25 stale roster emails; hand the schedule to the leads.
+The no-NLP boundary, set 08-31 after Shivam pushed on it: a model may propose, only a file a human approved may constrain. The parser stays deterministic.
 
 ## The first real run happened (2026-08-28)
 
