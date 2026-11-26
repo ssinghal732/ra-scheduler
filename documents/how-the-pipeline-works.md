@@ -16,11 +16,11 @@ Each section names the file it describes, so you can read this beside the source
 | **Input 3** | The roster: who is an LRA, who is a returner, who is new |
 | **Output** | The same grid, with names filled into every slot |
 
-For Fall 2026 that means picking 448 names across 138 shifts from 43 RAs, so that
+For Fall 2026 that meant picking 440 names across 136 shifts from 43 RAs, so that
 nobody is scheduled when they can't work, the special rules hold, and the workload
-comes out fair.
+comes out fair. Winter 2027 is 388 names across 119 shifts.
 
-Nine Python files do this. They work like an assembly line, each station handing
+Ten Python files do this. They work like an assembly line, each station handing
 its work to the next.
 
 ```
@@ -31,11 +31,12 @@ parse_form ─┘         (warn)        (who)        (where)       (check)      
 (or synthetic.py, for a dry run)
 ```
 
-`models.py` sits underneath all of them. `run_pipeline.py` sits on top, running the line.
+`models.py` sits underneath all of them, and `quarter.py` feeds it this quarter's dates
+from `quarter.toml`. `run_pipeline.py` sits on top, running the line.
 
 ---
 
-## `models.py` — the rulebook
+## `models.py`: the rulebook
 
 **Plain version.** Every fact about how duty scheduling works is written down here,
 once. What the tiers are. When the special periods start and end. How many people
@@ -45,10 +46,26 @@ each shift needs.
 files, someone would eventually change two of them. Here it's written once and every
 other file asks this one.
 
-```python
-RETURNERS_ONLY_END = date(2026, 9, 13)
-PAIRING_END = date(2026, 10, 18)
+**The dates come from `quarter.toml`.** The rules live in `models.py`; the dates they
+apply to this quarter live in a small text file at the top of the repo, the one file
+an operator edits between quarters. It names the two workbook tabs, the last day of
+the returners-only week, the last day of the training period, and any dates the leads
+staff themselves (volunteers after a break, say). A line left out means "this quarter
+has none," and the solver skips every rule that hangs off it.
 
+```toml
+quarter = "Winter 2027"
+grid_sheet = "Winter Template"
+form_sheet = "Winter Availability"
+# returners_only_through = 2026-09-13     (Fall had one; Winter does not)
+# pairing_through = 2026-10-18
+
+[[leads_fill]]
+dates = [2027-01-02, 2027-01-03]
+label = "Volunteers"
+```
+
+```python
 STAFFING = {
     "Evening (Weekday)":  (2, 2),   # 2 front desk, 2 game room
     "Morning":            (2, 0),
@@ -62,15 +79,15 @@ should get. Rather than hardcoding "new RAs get 11," it counts seats and derives
 
 - Start with a baseline number B
 - New RAs get B, returners get B-1, LRAs get half
-- Try B = 1, 2, 3... until the implied total would overshoot the seat count
-- The last B that fits is the answer
+- Try B = 1, 2, 3... and keep the B whose implied total lands closest to the seat
+  count, over or under
 
-For this quarter that lands on 11 / 10 / 5. If the grid changes next year and there
-are 500 seats, the numbers recompute on their own. Nothing silently goes stale.
+Fall 2026 landed on 11 / 10 / 5; Winter 2027 on 10 / 9 / 5. If the grid changes and
+there are 500 seats, the numbers recompute on their own. Nothing silently goes stale.
 
 ---
 
-## `grid.py` — reading the duty schedule template
+## `grid.py`: reading the duty schedule template
 
 **Plain version.** Opens the Excel file and turns each row into a shift the program
 can work with.
@@ -83,13 +100,16 @@ can work with.
 - Holidays aren't a flag column. Someone typed the word "Holiday" across the name
   cells. So it checks whether the "Front Desk Primary" cell literally reads
   `Holiday`, and if so the row needs nobody.
+- Some dates the leads staff themselves, by volunteers, like the first weekend back
+  from a break. Those dates are listed in `quarter.toml`, and their rows are set aside
+  the same way holiday rows are, with the label ("Volunteers") carried along.
 
-**Output:** two lists. Shifts that need staffing, and holiday rows kept aside so the
-exporter can put them back in the right place.
+**Output:** two lists. Shifts that need staffing, and the rows the solver skips, kept
+aside so the exporter can put them back in the right place.
 
 ---
 
-## `parse_form.py` — reading the form
+## `parse_form.py`: reading the form
 
 **Plain version.** Opens the Google Form response sheet and the roster, and turns
 them into the one object everything downstream consumes.
@@ -113,27 +133,37 @@ availability.
 
 **How it matches a person to the roster.** By email first. If the email is not on the
 roster, by exact full name; if that fails, by a first name that matches exactly one
-roster entry. Each fallback is flagged, because it means the roster has the wrong
-email for someone and should be fixed. If nothing matches, the run stops. People turned
-out to have more than one ucsd.edu address, which is why email alone was not enough.
+roster entry. If nothing matches, the run stops. People turned out to have more than
+one ucsd.edu address, which is why email alone wasn't enough. The report says how
+many people joined by name rather than email, without listing them.
 
 **Availability is built by subtraction.** Start with every shift in the quarter. Take
-away weekday evenings on any day marked "Class Conflict/Unavailable". Take away every
-shift on any date in the blackout list. Whatever is left is what the person can work.
+away weekday evenings on any day marked "Class Conflict/Unavailable". Take away any
+weekend slot marked unavailable in the weekend grid (Saturday Morning, Sunday Evening,
+and so on). Take away every shift on any date in the blackout list. Whatever is left
+is what the person can work.
+
+**Two ranking grids.** Weekdays are ranked 1 to 5, Monday to Friday. From Winter 2027
+the six weekend slots are ranked 1 to 6 too. The parser finds the grid columns by
+the `[Monday]` or `[Saturday Morning]` ending on each header, so the question text
+can change without breaking anything. The Fall form had a checkbox instead of the
+weekend grid; the parser still reads that shape, so Fall data can be replayed.
 
 **Dates are read off the front of each entry.** `12/9 (Final)`, `12/09(Final)`, and
 `12/9 - Final` all read as December 9. `Oct. 17 (Concert)` reads as nothing, and is
 reported for a human to fix. The parser never guesses at a date.
 
 **It flags what looks odd.** Three tiers. STOP halts before the solver runs: someone
-on the roster has not submitted, or marked every weekday as a conflict. FLAG prints
-and continues: a duplicate submission, more than ten blackout dates, a date it could
-not read. READ prints every free-text concerns box in full, because last year about
-one in eight of those held a real constraint that no parser could have seen.
+on the roster hasn't submitted, ranked the same number twice in a grid, marked every
+weekday as a conflict, or marked every weekend slot unavailable. FLAG prints and
+continues: a weekend slot marked unavailable (the leads ask for proof), a duplicate
+submission, more than ten blackout dates, a date it couldn't read. READ prints every
+free-text concerns box in full, because last year about one in eight of those held a
+constraint no parser could have seen.
 
 ---
 
-## `synthetic.py` — stand-in availability
+## `synthetic.py`: stand-in availability
 
 **Plain version.** Invents 43 RAs and randomly decides what each can work, so the
 rest of the pipeline had something to run on before real form data existed.
@@ -157,14 +187,14 @@ have to spell it identically or nothing matches.
 
 ---
 
-## `preflight.py` — the early warning
+## `preflight.py`: the early warning
 
 **Plain version.** Before the solver runs, count things. Are enough people free for
 each shift? Is anyone available for nothing at all? Do the availability labels match
 real shifts?
 
 **Why it exists.** When a constraint solver can't satisfy the rules, it reports
-`INFEASIBLE` and stops. That single word is all you get. The solver genuinely proved
+`INFEASIBLE` and stops. That single word is all you get. The solver did prove that
 no valid schedule exists, but the proof is a search tree, and there's no way to turn
 "I exhausted the search space" back into "September 9 is one person short."
 
@@ -188,7 +218,7 @@ It never blocks the run. The solver stays the authority.
 
 ---
 
-## `solver.py` — the actual brain
+## `solver.py`: the actual brain
 
 **Plain version.** It considers every combination of who could work what, and finds
 one that breaks no rules and spreads the work fairly.
@@ -200,7 +230,7 @@ that's either on or off.
 
 > Switch `x[R07, shift 42]` = ON means R07 works shift 42.
 
-43 RAs across 138 shifts would be 5,934 switches. It's fewer, because of this:
+43 RAs across 136 shifts would be 5,848 switches. It's fewer, because of this:
 
 ```python
 if s.key in data.available.get(ra.ra_id, ()):
@@ -208,9 +238,9 @@ if s.key in data.available.get(ra.ra_id, ()):
 ```
 
 A switch is only created if the RA is available. If R07 can't work Tuesdays, no
-switch exists for R07 on any Tuesday shift. It isn't turned off, it doesn't exist.
-Availability isn't enforced as a rule; it's enforced by the switch never being built.
-That's the cleanest way to make something impossible.
+switch exists for R07 on any Tuesday shift. There's nothing to turn off. Availability
+is enforced by the switch never being built, which is the cleanest way to make
+something impossible.
 
 ### Hard rules
 
@@ -240,6 +270,10 @@ m.Add(day_shifts[a] + day_shifts[b] <= 1)
 Two switches, at most one on. Morning and Afternoon can't both be on. Morning and
 Evening can, since there's a gap between them.
 
+The returners-only and pairing rules only exist for shifts inside those blocks, and
+the blocks come from the dates in `quarter.toml`. Winter 2027 has neither, so for
+Winter those two rules are never written down at all.
+
 The solver reports failure before it breaks any of these.
 
 ### Soft goals
@@ -250,9 +284,15 @@ adds to the score.
 
 ```python
 m.Minimize(
-    5000 * sum(training_shortfalls)   # priority 1
-    + 1000 * max_deviation            # priority 2
-    + sum(individual_deviations)      # priority 3
+    scale * (
+        5000 * sum(training_shortfalls)       # new RAs short on training shifts
+        + 1000 * max_deviation                # the worst-off person's distance from target
+        + 100 * max_imbalance                 # the worst weekday/weekend mix
+        + sum(individual_deviations)          # everyone's distance from target (LRAs x3)
+        + sum(mix_imbalances)                 # everyone's weekday/weekend mix
+        + 3 * sum(shifts_beyond_one_per_week) # spread across the quarter
+    )
+    + preference_misses                       # the tiebreaker
 )
 ```
 
@@ -260,13 +300,24 @@ m.Minimize(
 |---|---|
 | 5000 | Leaving one new RA short on training shifts |
 | 1000 | Pushing the worst-off person one shift further from target |
-| 1 | Any one person sitting off target |
+| 100 | Pushing the worst weekday/weekend mix one shift further off |
+| 3 | One person working twice in the same week |
+| 1 | Any one person sitting off target, or off their ideal mix |
 
-Because 5000 beats 1000 beats 1, the solver accepts a slightly less balanced schedule
-to get a new RA their training shifts. The priority order isn't code, it's the size
-of the numbers.
+Because 5000 beats 1000 beats 100 beats 3 beats 1, the solver accepts a slightly less
+balanced schedule to get a new RA their training shifts. The priority order is the
+size of the numbers.
 
-**`max_deviation` is the minimax choice.** Rather than minimizing total unfairness,
+**Preferences come last, by construction.** `scale` is worked out from the grid each
+run: the largest preference total any schedule could possibly have, plus one. So one
+unit of unfairness always costs more than every preference in the quarter combined.
+Among schedules that are equally fair, the solver picks the one people asked for.
+Inside that tiebreaker, the single worst person's misses are minimized before the
+total, so nobody ends up carrying everyone else's bad shifts. A 1st choice costs 0,
+a 2nd costs 1, and each step further costs one more, on both the weekday and the
+weekend grid.
+
+**`max_deviation` is the minimax choice.** Before minimizing total unfairness,
 it minimizes the *worst single person's* unfairness. A schedule where one person is
 5 shifts off and everyone else is perfect scores worse than one where six people are
 1 off. That matches how RAs actually compare with each other.
@@ -276,7 +327,7 @@ arrangement scores better.
 
 ---
 
-## `roles.py` — sorting people into columns
+## `roles.py`: sorting people into columns
 
 **Plain version.** The solver said *who* works Tuesday. This decides which name goes
 in which column.
@@ -287,7 +338,7 @@ and 2 new people, a legal arrangement always exists. So this step can never fail
 the solver never has to reason about it. Splitting "pick people" from "arrange
 people" made the first problem much smaller.
 
-**Primary and Secondary are times, not ranks.** They're the 7:30 walk and the 9:30
+**Primary and Secondary are walk times.** They're the 7:30 walk and the 9:30
 walk. During the pairing period each walk pair is one experienced and one new RA, so
 a trainee always walks with somebody who knows the route.
 
@@ -304,12 +355,12 @@ rng.shuffle(duo)
 ```
 
 **Seeded randomness.** `random.Random(seed)` with the same seed produces the same
-shuffle every time. Same inputs plus same seed gives the identical schedule. Reruns
-are reproducible, not a fresh roll of the dice.
+shuffle every time. Same inputs plus same seed gives the identical schedule, so a rerun
+is reproducible.
 
 ---
 
-## `validate.py` — the independent referee
+## `validate.py`: the independent referee
 
 **Plain version.** Re-checks every rule from scratch and lists anything wrong.
 
@@ -327,76 +378,84 @@ the same bug and both would report success. Written separately, a solver bug sur
 here as an error. It's the same reason you don't proofread your own writing by
 rereading your own notes.
 
-**The honest limit.** Two independent implementations catch a coding mistake. They
+**The limit.** Two independent implementations catch a coding mistake. They
 can't catch the same rule being misunderstood twice by the same author. Duty leads
 reading real rows is still the verification that counts.
 
 ---
 
-## `export.py` — writing the spreadsheet back
+## `export.py`: writing the spreadsheet back
 
 **Plain version.** Produces an Excel file in the leads' exact format, so it looks
 like the file they already use.
 
-- Duty rows and holiday rows are merged back together and sorted into calendar
-  order, with Morning before Afternoon before Evening
+- Duty rows, holiday rows, and leads-fill rows ("Volunteers") are merged back together
+  and sorted into calendar order, with Morning before Afternoon before Evening
 - The week label is written only when the week changes
 - Exceptions (RAs unavailable that day) appear once per date, not on every row
 - Holiday rows get a peach fill; the header is dark blue with white bold text
 - Dates are formatted `MM/DD/YYYY` rather than showing Excel's raw numbers
+- A second tab lists every RA's availability and preferences beside what they got,
+  so "why is this person on Friday" can be answered without a rerun
 
 None of it is clever. It matches what the leads expect so the output needs no
 reformatting by hand.
 
 ---
 
-## `run_pipeline.py` — the conductor
+## `run_pipeline.py`: the conductor
 
 Runs the stations in order and prints what happened.
 
 ```
-[grid]      138 shifts, 448 seats, 4 holiday rows
+[quarter]   Winter 2027: grid tab 'Winter Template', form tab 'Winter Availability'; no returners-only week; no pairing period; 2 leads-fill date(s)
+[grid]      119 shifts, 388 seats, 8 rows the solver skips (2 holiday, 6 volunteers), 2027-01-04 -> 2027-03-21
 [avail]     43 RAs
-[preflight] 0 blocking, 0 tight, 4 notes
+[preflight] 0 blocking, 0 tight, 1 notes
 [solve]     OPTIMAL, max deviation 1
 [validate]  0 hard-rule/role violations
-[fairness]  LRA 5/5.0/5 · returner 10/10.1/11 · new 11/11.2/12
-[export]    wrote filled.xlsx
+[balance]   worst weekday/weekend imbalance 1 shift(s); 40/43 RAs on their ideal mix
+[spread]    0 shift(s) beyond one-per-person-per-week; busiest anyone gets in a single week: 1
+[fairness]  LRA       target  5 -> min 5 / mean 5.0 / max 5
+[prefs]     weekday shifts on a 1st or 2nd choice day: 210/212 (99%)
+[export]    wrote winter_2027.xlsx
 ```
 
-It stops if the solve fails, and stops if the validator finds anything. It never
-writes a file it knows is wrong.
+It stops if the parser finds a STOP, if the solve fails, and if the validator finds
+anything. It never writes a file it knows is wrong.
 
 ---
 
 ## How this has been tested, and what that does not cover
 
-The pipeline has been run end to end against a **generated stand-in grid**: an Excel
-file built to the same dates, shift names, and column headers as the real one, with
-no names in it.
+Three layers, each less willing to take the previous one's word.
 
-That stand-in was written by reading `grid.py` and matching what it expects. So it
-proves nothing about `grid.py` itself, which is circular. It does genuinely exercise
-everything after `grid.py`, because the solver, role assignment, validator, and
-exporter have no idea where the shift list came from. They receive a list of shifts
-and behave identically whether that list came from a real file or a fake one.
+**Unit tests**, five files, one per tricky module. The first test in the preferences
+file guards the property that fairness beats every preference combined; if it ever
+fails, the tool has started trading someone's fair share for someone else's
+convenience.
 
-An analogy: testing a coffee machine with beans ground to exactly the size the manual
-specifies proves the machine brews. It doesn't prove it handles the beans the roaster
-actually sells.
+**The validator**, on every run, re-checking every rule against the finished schedule
+with code the solver never touches.
 
-Results from that run: 138 shifts, 448 seats, 4 holiday rows, `OPTIMAL` in 27
-seconds, 0 violations, max deviation 1. Checked by reading rows back out of the
-output file rather than trusting the validator: 0 new RAs seated in the
-returners-only week, 28 of 28 pairing-period evening shifts with both walk pairs
-mixed, all 4 holiday rows preserved.
+**Rows read out of the file.** The Fall 2026 schedule was checked by opening the
+output and looking: 0 new RAs in the returners-only week, 28 of 28 pairing-period
+shifts mixed on both walks and both desks, all 4 holiday rows in place, 440 names
+each matching a roster tier. That run was `OPTIMAL`, 0 violations, max deviation 1,
+40 of 43 people on their ideal weekday/weekend mix, 88% of weekday shifts on a 1st or
+2nd choice day.
+
+What none of this covers: the same rule misunderstood the same way by the same
+author, in the solver and the validator both. Duty leads reading real rows is still
+the check that counts.
 
 ---
 
 ## The two ideas holding it together
 
-**One place per fact.** Every rule lives in `models.py` and nowhere else. Changing
-when the pairing period ends is one edit, and every module follows.
+**One place per fact.** Every rule lives in `models.py` and nowhere else, and every
+date a rule applies to lives in `quarter.toml` and nowhere else. Changing when the
+pairing period ends is one edit, and every module follows.
 
 **The checker doesn't trust the maker.** The solver produces a schedule. A separately
 written validator checks it. Then rows get read out of the finished file rather than

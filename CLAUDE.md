@@ -74,7 +74,7 @@ Each was decided by Shivam with a reason, 2026-08-24 unless noted. Reopening the
 
 ## The measured facts
 
-**Current grid: 136 shifts, 440 seats, 84 duty dates, 2026-09-10 to 2026-12-13** (the leads' file of 2026-08-26 dropped the Sept 8 and 9 evenings). Returners-only block is 4 dates / 24 seats. `compute_targets()` and `_weekday_share()` re-derive from whatever grid is loaded. **Always run against the leads' latest file, never a cached copy.**
+**Current grid (Winter 2027, "Winter Template" tab, read 2026-11-25): 119 shifts, 388 seats, 2027-01-04 to 2027-03-21**, after 2 holiday rows and the 6 volunteer shifts on Jan 2-3 leave the solver. No returners-only or pairing block. Targets 10 / 9 / 5. Fall 2026 was 136 shifts / 440 seats (later 148 / 480 in the leads' file (4)). `compute_targets()` and `_weekday_share()` re-derive from whatever grid is loaded. **Always run against the leads' latest file, never a cached copy.**
 
 **Watch out when A/B testing the objective:** the first comparison was invalid because the balance feature has TWO terms (a worst-case and a sum) and only one was being switched off. Both weights are now named constants (`W_MAXIMB`, `W_IMBSUM`) so an off switch is really off.
 
@@ -91,7 +91,7 @@ The Fall 2026 form, page by page, with what the first real responses showed: [do
 ## Stack
 
 ```
-Python 3.12
+Python 3.11+        (3.13 on Shivam's machine; tomllib for quarter.toml needs 3.11)
 ortools              CP-SAT, the solver
 openpyxl             reads the grid, writes the filled schedule
 
@@ -107,7 +107,9 @@ Install only what the code in front of you imports.
 
 | Path | What lives there |
 |---|---|
-| `ra_scheduler/models.py` | Every rule constant: tiers, block dates, staffing shapes, target math. Nothing is defined twice. |
+| `quarter.toml` | **The one file an operator edits between quarters** (2026-11-25): quarter name, the two workbook tab names, the returners-only and pairing end dates (a line left out = no such block), and the dates the leads staff themselves. Plain dates, no quotes. |
+| `ra_scheduler/quarter.py` | Reads `quarter.toml` once at import, validates it with plain-English errors (unknown key, quoted date, pairing before returners-only, duplicate leads-fill date). `models.py` takes its dates from here. |
+| `ra_scheduler/models.py` | Every rule constant: tiers, block logic, staffing shapes, target math. Nothing is defined twice. The per-quarter dates come from `quarter.toml`. |
 | `ra_scheduler/grid.py` | Duty-grid xlsx to shift instances, holiday rows kept separately for export. |
 | `ra_scheduler/synthetic.py` | Synthetic availability and preferences, in the exact `AvailabilityData` shape. Used when `--availability` is omitted; the output is then stamped SYNTHETIC. |
 | `ra_scheduler/parse_form.py` | **The real thing.** Reads the Google Form export plus the roster into `AvailabilityData`. Keyword column matching with a printed match report, three-tier findings (STOP / FLAG / READ), every 08-26 parser decision encoded. |
@@ -121,6 +123,7 @@ Install only what the code in front of you imports.
 | `tests/test_parse_form.py` | Parser tests on the shapes seen in the first real responses. No real data in them. |
 | `tests/test_preferences.py` | Unit tests on the preference layer. The first one guards the fairness-beats-preferences property. |
 | `tests/test_preflight.py` | Unit tests on the pre-solve check. No ortools needed, so they run anywhere. |
+| `tests/test_quarter.py` | Unit tests on `quarter.toml` parsing and its refusals. No disk, no ortools. |
 | `references/` | **Local only, gitignored.** Source material with real names in it: the conversation with last year's duty leads about how they built the schedule by hand, and the Apps Script they used for swaps. Read it, quote it by role, never commit it. |
 | `documents/how-the-pipeline-works.md` | Plain-language walkthrough of every module, written for a non-technical reader. Published as an artifact too; keep the two in step. |
 
@@ -133,7 +136,7 @@ Install only what the code in front of you imports.
 - **Code yes, docs yes, data never.** Changed 2026-08-26 by Shivam, overriding the global rule that operator docs stay out of a repo. CLAUDE.md, NOW.md, and CHANGELOG.md are now tracked and pushed, so this repo carries its own context and a fresh session finds everything in one place. The condition attached: **no real names of other people in any of them.** Shivam's own name is fine and he wants it on the product documents as author (2026-08-27). Everyone else is referred to by role, because `git push` is permanent and stripping a name later means rewriting history, not editing a file.
 - **Data still never enters the repo.** The real grid, the availability export, and any filled schedule carry real RA names. `.gitignore` blocks `*.xlsx` / `*.csv` / `*.json` so that cannot happen by accident.
 - **People:** the ADRL supervising this project is also a duty lead; two RA duty leads run the schedule day to day. All of them will operate the tool themselves (confirmed 2026-08-26), which is what makes the v2 UI real. Names are deliberately kept out of this repo.
-- **The parser is built** (`ccbbf80`, 2026-08-26) and has now run on all 43 real responses (2026-08-28): 0 stops, OPTIMAL, 0 violations, `fall_2026.xlsx` written. Run: `python run_pipeline.py --grid <grid> --grid-sheet "Winter Template" --roster <roster> --availability <export> --sheet "Winter Availability" --out <out>` (`--grid-sheet` defaults to "Fall Duty Schedule"; added 2026-11-25). It STOPs until every roster member has submitted. **The leads' exports land as `(2)`, `(3)` in Downloads; `ls -t` before running.**
+- **The parser is built** (`ccbbf80`, 2026-08-26) and has now run on all 43 real responses (2026-08-28): 0 stops, OPTIMAL, 0 violations, `fall_2026.xlsx` written. Run: `python run_pipeline.py --grid <grid> --roster <roster> --availability <export> --out <out>`; the two tab names default from `quarter.toml` (`--grid-sheet` / `--sheet` override them). It STOPs until every roster member has submitted. **The leads' exports land as `(2)`, `(3)` in Downloads; `ls -t` before running.**
 - **The form-fix thread is closed.** Read the shipped form 2026-08-26 (`~/Downloads/DutyAvailForm_FA26.pdf`, 7 pages). See "The form as shipped" below for what landed and what the parser faces. **The real deadline is Thursday 08/27 at 11:59 pm**, not 08/28: responses are still arriving through Thursday evening, so a complete set does not exist until Friday morning.
 - **Time category:** `RA_Scheduler`, short code `RAS`, in `technical-projects`. Created 2026-08-26. Log with `time_log(category='RAS', ...)`. Ask Shivam for the hours; never guess them.
 

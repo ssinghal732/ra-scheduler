@@ -22,18 +22,20 @@ from ra_scheduler.solver import solve
 from ra_scheduler.roles import assign_all_roles
 from ra_scheduler.validate import validate
 from ra_scheduler.models import WEEKEND_TIME_LABEL
+from ra_scheduler.quarter import QUARTER
 from ra_scheduler.export import synthetic_path, write_schedule
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--grid", required=True)
-    ap.add_argument("--grid-sheet", default="Fall Duty Schedule",
-                    help="tab inside the grid workbook (default: 'Fall Duty Schedule'; Winter: 'Winter Template')")
+    ap.add_argument("--grid-sheet", default=QUARTER.grid_sheet,
+                    help=f"tab inside the grid workbook (default from quarter.toml: {QUARTER.grid_sheet!r})")
     ap.add_argument("--out", required=True)
     ap.add_argument("--roster", help="roster xlsx: Email | Name | Tier")
     ap.add_argument("--availability", help="Google Form response export xlsx")
-    ap.add_argument("--sheet", help="sheet name inside the form export (default: first)")
+    ap.add_argument("--sheet", default=QUARTER.form_sheet,
+                    help=f"tab inside the form export (default from quarter.toml: {QUARTER.form_sheet!r})")
     ap.add_argument("--seed", type=int, default=0, help="role-slotting seed")
     ap.add_argument("--preflight-lines", type=int, default=20,
                     help="how many preflight findings to print")
@@ -41,6 +43,7 @@ def main() -> int:
                     help="print every preflight finding")
     args = ap.parse_args()
 
+    print(f"[quarter]   {QUARTER.describe()}")
     shifts, holidays = load_grid(args.grid, sheet=args.grid_sheet)
     print(f"[grid]      {len(shifts)} shifts, {sum(s.seats for s in shifts)} seats, "
           f"{len(holidays)} rows the solver skips "

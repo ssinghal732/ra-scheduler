@@ -22,15 +22,17 @@ Built end to end 2026-08-24, extended through 2026-08-26 (preferences, balance, 
 
 **Code state (11-25):** parser reads the Winter form (verified on the 7 live responses in `references/26-27 RA Duty Schedule (6).xlsx`, tab "Winter Availability"; the grid is the "Winter Template" tab: 125 shifts, 404 seats, targets 10/9/5, ideal split new 5+5, returner 5+4, LRA 3+2). Front weekday curve and weekend rank curve are live in `models.py`. `--grid-sheet` flag added. Block dates are None (Winter has no blocks). `PREF_MINIMAX` ON, `PREF_SEAT_MINIMAX` off. Stale-email flag removed. Tests pass. Everything through the parser is pushed (`00af978`); the flag flip is the next commit.
 
-**Jan 2-3 are leads-fill dates** (volunteers via Teams, per the leads' 11-25 message): `LEADS_FILL_DATES` in `models.py`, rows exported with "Volunteers" in the name cells. Edit that dict if the leads add dates.
+**`quarter.toml` is the per-quarter setup file** (11-25): tab names, block end dates, leads-fill dates. Jan 2-3 are in it as "Volunteers" (the leads staff the first weekend back via Teams). Edit that file, nothing else, between quarters.
 
 **Next:** run the real Winter pipeline the moment all 43 have submitted (form closes Dec 1), read the findings and the schedule rows with Shivam. Later: Winter carry-over credit idea (v2), task #6 Sheets vs website.
 
 **Run command** (from the repo; point both `--grid` and `--availability` at the leads' newest export):
 ```
-python run_pipeline.py --grid "references/<leads file>.xlsx" --grid-sheet "Winter Template" \
+python run_pipeline.py --grid "references/<leads file>.xlsx" \
   --roster ~/Downloads/"RA Roster - Tiered.xlsx" --availability "references/<leads file>.xlsx" \
-  --sheet "Winter Availability" --out ~/Downloads/winter_2027.xlsx
+  --out ~/Downloads/winter_2027.xlsx
+```
+The two tab names come from `quarter.toml`.
 ```
 
 **What Shivam needs to do:** a duplicate rank STOPs the run and names the person; too late to turn on Google's one-per-column limit, so Shivam edits the response sheet himself when one pops up. Roster emails: 4 of the first 7 joined by name; not a finding any more, just a count on the "responses used" line.

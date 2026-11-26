@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
+from .quarter import QUARTER
+
 # --------------------------------------------------------------------------- #
 # Tiers
 # --------------------------------------------------------------------------- #
@@ -31,22 +33,19 @@ class RA:
 # --------------------------------------------------------------------------- #
 # Rule blocks (D1): same solver everywhere, rules gated by date
 # --------------------------------------------------------------------------- #
-# Set once per quarter. None means the quarter has no such block, and the
-# solver skips every rule that hangs off it (the composition rule and the
-# training floor). Winter 2027 has neither block (Shivam, 2026-11-22): set both
-# to None for that run. Tier loads still apply either way.
-RETURNERS_ONLY_END: date | None = None   # Winter 2027: no returners-only week. Fall 2026 was date(2026, 9, 13)
-PAIRING_END: date | None = None          # Winter 2027: no pairing period.       Fall 2026 was date(2026, 10, 18)
+# The dates come from quarter.toml (see quarter.py); the rules stay here. None
+# means the quarter has no such block, and the solver skips every rule that
+# hangs off it (the composition rule and the training floor). Tier loads still
+# apply either way. Fall 2026 was 2026-09-13 / 2026-10-18; Winter 2027 has
+# neither (Shivam, 2026-11-22).
+RETURNERS_ONLY_END: date | None = QUARTER.returners_only_through
+PAIRING_END: date | None = QUARTER.pairing_through
 
 # Dates the duty leads staff themselves, by volunteers (first come first served
-# on Teams). The solver never sees these shifts; the exporter writes the rows
-# back with the label in the name cells so the leads fill them in. Winter 2027:
-# the first weekend back from break (leads' message, 2026-11-25). Per quarter,
-# like the block dates above.
-LEADS_FILL_DATES: dict[date, str] = {
-    date(2027, 1, 2): "Volunteers",
-    date(2027, 1, 3): "Volunteers",
-}
+# on Teams) or otherwise. The solver never sees these shifts; the exporter
+# writes the rows back with the label in the name cells so the leads fill them
+# in. Winter 2027: the first weekend back from break (leads' message, 2026-11-25).
+LEADS_FILL_DATES: dict[date, str] = dict(QUARTER.leads_fill)
 
 BLOCK_RETURNERS_ONLY = "returners_only"
 BLOCK_PAIRING = "pairing"

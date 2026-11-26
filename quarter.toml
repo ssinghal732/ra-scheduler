@@ -1,0 +1,30 @@
+# RA Scheduler: the one file to edit each quarter.
+#
+# Everything the solver needs to know about THIS quarter that is not in the
+# duty grid or the availability form lives here. Dates are written plain,
+# year-month-day, no quotes: 2027-01-02. To say "this quarter has none",
+# delete the line or put a # in front of it. The solver reads this file at
+# startup and stops with a plain message if something does not parse.
+
+quarter = "Winter 2027"
+
+# Tab names inside the duty leads' workbook.
+grid_sheet = "Winter Template"          # the duty grid: Week | Date | Day of the Week | Shift | ...
+form_sheet = "Winter Availability"      # the Google Form responses, one row per RA
+
+# Returners-only week: through this date, new RAs are not scheduled at all.
+# Fall 2026 was 2026-09-13. Winter has none, so the line is commented out.
+# returners_only_through = 2026-09-13
+
+# Training (pairing) period: through this date every 4-person shift is 2
+# experienced + 2 new, on the walks and on the desks, and every new RA must
+# get at least 2 shifts in the period. Fall 2026 was 2026-10-18. Winter has none.
+# pairing_through = 2026-10-18
+
+# Dates the duty leads staff themselves, outside the solver (volunteers after a
+# break, for example). The solver skips these shifts and the schedule file
+# comes back with the label in the name cells for the leads to fill in.
+# Add another [[leads_fill]] block for another label.
+[[leads_fill]]
+dates = [2027-01-02, 2027-01-03]
+label = "Volunteers"
