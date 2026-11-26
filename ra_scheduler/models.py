@@ -31,8 +31,12 @@ class RA:
 # --------------------------------------------------------------------------- #
 # Rule blocks (D1): same solver everywhere, rules gated by date
 # --------------------------------------------------------------------------- #
-RETURNERS_ONLY_END = date(2026, 9, 13)   # Sep 8-13: new RAs ineligible
-PAIRING_END = date(2026, 10, 18)         # Sep 14-Oct 18: half experienced / half new
+# Set once per quarter. None means the quarter has no such block, and the
+# solver skips every rule that hangs off it (the composition rule and the
+# training floor). Winter 2027 has neither block (Shivam, 2026-11-22): set both
+# to None for that run. Tier loads still apply either way.
+RETURNERS_ONLY_END: date | None = date(2026, 9, 13)   # Fall 2026: Sep 8-13, new RAs ineligible
+PAIRING_END: date | None = date(2026, 10, 18)         # Fall 2026: Sep 14-Oct 18, half experienced / half new
 
 BLOCK_RETURNERS_ONLY = "returners_only"
 BLOCK_PAIRING = "pairing"
@@ -40,9 +44,9 @@ BLOCK_NORMAL = "normal"
 
 
 def block_of(d: date) -> str:
-    if d <= RETURNERS_ONLY_END:
+    if RETURNERS_ONLY_END is not None and d <= RETURNERS_ONLY_END:
         return BLOCK_RETURNERS_ONLY
-    if d <= PAIRING_END:
+    if PAIRING_END is not None and d <= PAIRING_END:
         return BLOCK_PAIRING
     return BLOCK_NORMAL
 

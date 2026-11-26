@@ -9,6 +9,12 @@ New entry template:
 - What shipped, in plain words.
 -->
 
+## 2026-11-25
+
+- **Block end dates are optional** (Shivam's pick between two options). `RETURNERS_ONLY_END` and `PAIRING_END` in `models.py` accept None, meaning the quarter has no such block; `block_of` skips a None block, and the solver's training floor turns itself off when the grid has no pairing shifts. Before this, Winter was "off" only because every Winter date happened to fall after the Fall dates, and the training floor would have reported every new RA as short. Proven on the Fall grid with both None: 148 normal shifts, OPTIMAL, no training warnings. Fall values stay in the file until the Winter run.
+- **Test runner fix:** the `__main__` block in `tests/test_preflight.py` sat mid-file, so the two tests below it never ran. Moved to the bottom; 14 tests run now, including the new one for None dates.
+- **The leads' answer on the two 11-22 questions** (first lead): spread thinner, swap the odd 4th/5th by hand; same weekday every week is fine. Plain worst-person it is. Recorded in NOW.
+
 ## 2026-11-22
 
 Back after two months, for the Winter 2027 quarter. Every decision below is Shivam's; the measurements are CC's.

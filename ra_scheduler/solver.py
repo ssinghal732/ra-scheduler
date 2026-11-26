@@ -231,10 +231,12 @@ def solve(
             excess_vars.append(ex)
             week_count_vars.append(wc)
 
-    # P1: training floor (soft)
+    # P1: training floor (soft). Only when the quarter has a pairing block;
+    # with no pairing shifts to count, every new RA would read as short.
     shortfall_vars = {}
+    has_pairing = any(s.block == BLOCK_PAIRING for s in shifts)
     for ra in data.roster:
-        if ra.tier != TIER_NEW:
+        if ra.tier != TIER_NEW or not has_pairing:
             continue
         pc = m.NewIntVar(0, len(shifts), f"pair_count_{ra.ra_id}")
         m.Add(pc == sum(

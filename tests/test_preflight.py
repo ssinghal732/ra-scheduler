@@ -153,14 +153,6 @@ def test_findings_sort_blocking_first():
     assert f[0].severity == BLOCKING
 
 
-if __name__ == "__main__":
-    for name, fn in sorted(globals().items()):
-        if name.startswith("test_"):
-            fn()
-            print(f"ok  {name}")
-    print("all tests passed")
-
-
 # --- output naming: a synthetic run must announce itself in the filename ---
 
 def test_synthetic_path_stamps_the_name():
@@ -175,3 +167,29 @@ def test_synthetic_path_is_idempotent():
     assert synthetic_path(once) == once
     assert synthetic_path("already_synthetic.xlsx") == "already_synthetic.xlsx"
     assert synthetic_path("MySynthetic.xlsx") == "MySynthetic.xlsx"  # case-insensitive
+
+
+def test_block_dates_set_to_none_mean_no_such_block():
+    """A quarter with no returners-only week and no pairing period (Winter
+    2027) sets both end dates to None; every date then falls in the normal
+    block, so no composition rule fires anywhere."""
+    from ra_scheduler import models
+    saved = models.RETURNERS_ONLY_END, models.PAIRING_END
+    try:
+        models.RETURNERS_ONLY_END = None
+        models.PAIRING_END = None
+        for d in (date(2026, 9, 10), date(2026, 10, 1), date(2027, 1, 5)):
+            assert models.block_of(d) == models.BLOCK_NORMAL
+        # one block off, the other still on
+        models.PAIRING_END = date(2026, 10, 18)
+        assert models.block_of(date(2026, 9, 10)) == models.BLOCK_PAIRING
+    finally:
+        models.RETURNERS_ONLY_END, models.PAIRING_END = saved
+
+
+if __name__ == "__main__":
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_"):
+            fn()
+            print(f"ok  {name}")
+    print("all tests passed")
