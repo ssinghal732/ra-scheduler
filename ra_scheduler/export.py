@@ -166,9 +166,9 @@ def write_schedule(
                      s.rounds))
     for h in holidays:
         rows.append((h.date, _SHIFT_ORDER[h.shift], h.week, h.dow, h.shift, h.time,
-                     "Holiday", "Holiday",
-                     "Holiday" if h.shift.startswith("Evening") else "",
-                     "Holiday" if h.shift.startswith("Evening") else "",
+                     h.label, h.label,
+                     h.label if h.shift.startswith("Evening") else "",
+                     h.label if h.shift.startswith("Evening") else "",
                      h.rounds))
     rows.sort(key=lambda r: (r[0], r[1]))
 

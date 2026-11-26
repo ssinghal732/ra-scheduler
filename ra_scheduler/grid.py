@@ -1,8 +1,9 @@
 """Read the duty-schedule grid (xlsx) into ShiftInstances.
 
 The grid is the source of truth for WHICH (date, shift) need coverage and how
-many seats each has. Holiday rows are returned separately so the exporter can
-reproduce them; they need no coverage.
+many seats each has. Holiday rows, and rows on dates the leads staff themselves
+(models.LEADS_FILL_DATES), are returned separately so the exporter can
+reproduce them; the solver never sees them.
 """
 from __future__ import annotations
 
@@ -11,19 +12,23 @@ from datetime import date, datetime, timedelta
 
 from openpyxl import load_workbook
 
-from .models import STAFFING, ShiftInstance
+from .models import LEADS_FILL_DATES, STAFFING, ShiftInstance
 
 _EXCEL_EPOCH = datetime(1899, 12, 30)
 
 
 @dataclass(frozen=True)
 class HolidayRow:
+    """A grid row the solver does not fill: a holiday, or a date the leads
+    staff themselves (LEADS_FILL_DATES). `label` is what the exporter writes
+    in the name cells."""
     date: date
     dow: str
     shift: str
     time: str
     rounds: str
     week: str
+    label: str = "Holiday"
 
 
 def _to_date(v) -> date | None:
@@ -67,6 +72,8 @@ def load_grid(path: str, sheet: str = "Fall Duty Schedule") -> tuple[list[ShiftI
         fd_primary = get(row, "Front Desk Primary")
         if isinstance(fd_primary, str) and fd_primary.strip().lower() == "holiday":
             holidays.append(HolidayRow(**common))
+        elif d in LEADS_FILL_DATES:
+            holidays.append(HolidayRow(label=LEADS_FILL_DATES[d], **common))
         else:
             shifts.append(ShiftInstance(sid=len(shifts), **common))
     return shifts, holidays

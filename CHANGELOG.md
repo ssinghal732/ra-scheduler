@@ -19,6 +19,7 @@ New entry template:
 - **Stale-roster-email flag removed** (Shivam: "I don't want to see it in the outputs"). A response that joins by name instead of email is no longer a finding; the parse report's "responses used" line carries a count instead. Total misses still STOP.
 - Tests: 6 new parser tests on the Winter shape, 3 new preference tests. 4 files, all passing.
 - **Worst-person spreading ON** (`PREF_MINIMAX = True`, Shivam, after the first lead chose spreading). The solver now minimizes the single worst person's preference total before the plain total; the pipeline prints that worst total. Two-stage stays off. **Block dates set to None** for Winter 2027; the three test files that exercise the Fall blocks pin the Fall dates themselves. Synthetic Winter run with the flag on: OPTIMAL in 4 s, 0 violations, worst person 2 points.
+- **Leads-fill dates.** The leads are staffing the first weekend back (Jan 2-3) with volunteers, so those 6 shifts (16 seats) leave the solver. `LEADS_FILL_DATES` in `models.py` names the dates; the grid reader routes those rows to the no-coverage list with the label "Volunteers", and the exporter writes that label in the name cells, the way holiday rows already work. Seats drop from 404 to 388; targets stay 10/9/5, with more people landing one under.
 - **The leads' answer on the two 11-22 questions** (first lead): spread thinner, swap the odd 4th/5th by hand; same weekday every week is fine. Plain worst-person it is. Recorded in NOW.
 
 ## 2026-11-22

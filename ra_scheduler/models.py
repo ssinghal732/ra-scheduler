@@ -38,6 +38,16 @@ class RA:
 RETURNERS_ONLY_END: date | None = None   # Winter 2027: no returners-only week. Fall 2026 was date(2026, 9, 13)
 PAIRING_END: date | None = None          # Winter 2027: no pairing period.       Fall 2026 was date(2026, 10, 18)
 
+# Dates the duty leads staff themselves, by volunteers (first come first served
+# on Teams). The solver never sees these shifts; the exporter writes the rows
+# back with the label in the name cells so the leads fill them in. Winter 2027:
+# the first weekend back from break (leads' message, 2026-11-25). Per quarter,
+# like the block dates above.
+LEADS_FILL_DATES: dict[date, str] = {
+    date(2027, 1, 2): "Volunteers",
+    date(2027, 1, 3): "Volunteers",
+}
+
 BLOCK_RETURNERS_ONLY = "returners_only"
 BLOCK_PAIRING = "pairing"
 BLOCK_NORMAL = "normal"

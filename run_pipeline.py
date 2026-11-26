@@ -12,7 +12,7 @@ from __future__ import annotations
 import argparse
 import sys
 import textwrap
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from ra_scheduler.grid import load_grid
 from ra_scheduler.synthetic import make_availability
@@ -43,7 +43,9 @@ def main() -> int:
 
     shifts, holidays = load_grid(args.grid, sheet=args.grid_sheet)
     print(f"[grid]      {len(shifts)} shifts, {sum(s.seats for s in shifts)} seats, "
-          f"{len(holidays)} holiday rows, {shifts[0].date} -> {shifts[-1].date}")
+          f"{len(holidays)} rows the solver skips "
+          f"({', '.join(f'{n} {lab.lower()}' for lab, n in sorted(Counter(h.label for h in holidays).items()))}), "
+          f"{shifts[0].date} -> {shifts[-1].date}")
 
     availability_is_synthetic = args.availability is None
     if availability_is_synthetic:
