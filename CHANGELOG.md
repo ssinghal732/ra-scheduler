@@ -18,6 +18,7 @@ New entry template:
 - **`--grid-sheet` flag** on `run_pipeline.py`, default "Fall Duty Schedule". Full pipeline on the Winter Template with synthetic availability: 125 shifts / 404 seats / 2 holiday rows, targets 10/9/5, OPTIMAL, 0 violations.
 - **Stale-roster-email flag removed** (Shivam: "I don't want to see it in the outputs"). A response that joins by name instead of email is no longer a finding; the parse report's "responses used" line carries a count instead. Total misses still STOP.
 - Tests: 6 new parser tests on the Winter shape, 3 new preference tests. 4 files, all passing.
+- **Worst-person spreading ON** (`PREF_MINIMAX = True`, Shivam, after the first lead chose spreading). The solver now minimizes the single worst person's preference total before the plain total; the pipeline prints that worst total. Two-stage stays off. **Block dates set to None** for Winter 2027; the three test files that exercise the Fall blocks pin the Fall dates themselves. Synthetic Winter run with the flag on: OPTIMAL in 4 s, 0 violations, worst person 2 points.
 - **The leads' answer on the two 11-22 questions** (first lead): spread thinner, swap the odd 4th/5th by hand; same weekday every week is fine. Plain worst-person it is. Recorded in NOW.
 
 ## 2026-11-22

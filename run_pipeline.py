@@ -173,6 +173,9 @@ def main() -> int:
               f"{desk_ok}/{desk_n} ({desk_ok / desk_n:.0%})")
     print(f"[prefs]     total preference cost {result.preference_cost} "
           f"(0 = everyone got everything)")
+    if result.worst_person_pref:
+        print(f"[prefs]     worst single person's preference total: {result.worst_person_pref} "
+              f"(spreading on: the solver minimized this before the total)")
 
     out = synthetic_path(args.out) if availability_is_synthetic else args.out
     write_schedule(out, shifts, holidays, roles, data)

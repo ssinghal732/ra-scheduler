@@ -20,11 +20,18 @@ Built end to end 2026-08-24, extended through 2026-08-26 (preferences, balance, 
 - Winter has no tier-gated weeks; load differences still apply; grid sheet is likely "Winter Duty Schedule".
 - (11-25) The block end dates in `models.py` are optional: None means the quarter has no such block, and the training floor skips itself when the grid has no pairing shifts. For Winter, set both to None. Still Fall values in the file until the Winter run is built.
 
-**Code state (11-25):** parser reads the Winter form (verified on the 7 live responses in `references/26-27 RA Duty Schedule (6).xlsx`, tab "Winter Availability"; the grid is the "Winter Template" tab: 125 shifts, 404 seats, targets 10/9/5, ideal split new 5+5, returner 5+4, LRA 3+2). Front weekday curve and weekend rank curve are live in `models.py`. `--grid-sheet` flag added. Block dates optional. `PREF_MINIMAX` still OFF, `PREF_SEAT_MINIMAX` off. Tests pass. Committed through the block-dates change; the parser/curve work is uncommitted, commit proposed.
+**Code state (11-25):** parser reads the Winter form (verified on the 7 live responses in `references/26-27 RA Duty Schedule (6).xlsx`, tab "Winter Availability"; the grid is the "Winter Template" tab: 125 shifts, 404 seats, targets 10/9/5, ideal split new 5+5, returner 5+4, LRA 3+2). Front weekday curve and weekend rank curve are live in `models.py`. `--grid-sheet` flag added. Block dates are None (Winter has no blocks). `PREF_MINIMAX` ON, `PREF_SEAT_MINIMAX` off. Stale-email flag removed. Tests pass. Everything through the parser is pushed (`00af978`); the flag flip is the next commit.
 
-**Next, in order:** flip `PREF_MINIMAX` on (the leads chose spreading); run the real Winter pipeline the moment all 43 have submitted; read the findings and the schedule rows with Shivam. Later: Winter carry-over credit idea (v2), task #6 Sheets vs website.
+**Next:** run the real Winter pipeline the moment all 43 have submitted (form closes Dec 1), read the findings and the schedule rows with Shivam. Later: Winter carry-over credit idea (v2), task #6 Sheets vs website.
 
-**What Shivam needs to do:** tell the leads to switch on "Limit to one response per column" on both grids (1 of the first 7 already ranked a weekday twice, which is a STOP). Update the roster: 4 of the first 7 matched by name because the roster email is stale. Set `RETURNERS_ONLY_END` and `PAIRING_END` to None for the Winter run (or have CC do it).
+**Run command** (from the repo; point both `--grid` and `--availability` at the leads' newest export):
+```
+python run_pipeline.py --grid "references/<leads file>.xlsx" --grid-sheet "Winter Template" \
+  --roster ~/Downloads/"RA Roster - Tiered.xlsx" --availability "references/<leads file>.xlsx" \
+  --sheet "Winter Availability" --out ~/Downloads/winter_2027.xlsx
+```
+
+**What Shivam needs to do:** a duplicate rank STOPs the run and names the person; too late to turn on Google's one-per-column limit, so Shivam edits the response sheet himself when one pops up. Roster emails: 4 of the first 7 joined by name; not a finding any more, just a count on the "responses used" line.
 
 **Fall, for the record:** the schedule the RAs received was, per Shivam, hand-made by the leads from the "Fall Automated Preferences" lookup tab, not the solver output (5-9 of 140 shifts matched). The leads' grievances were measured against that sheet. See CHANGELOG 2026-11-22.
 

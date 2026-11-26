@@ -52,7 +52,7 @@ TRAIN_FLOOR = 2                     # Q1: minimum pairing-period shifts per new 
 W_TRAIN, W_MAXDEV, W_MAXIMB = 5000, 1000, 100   # P1 > P2 > P3
 W_IMBSUM = 1                        # spread of the weekday/weekend mix
 W_WEEK = 3                          # each shift beyond MAX_SHIFTS_PER_WEEK in one week
-PREF_MINIMAX = False                # option A (2026-11-22, under test): also minimize the
+PREF_MINIMAX = True                 # option A (2026-11-22, under test): also minimize the
                                     # worst single person's preference total, weighted so
                                     # one point of "worst" beats any reshuffle of the total
 PREF_SEAT_MINIMAX = False           # option A, two-stage (under test): above that, minimize

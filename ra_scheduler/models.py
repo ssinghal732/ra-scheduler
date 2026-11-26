@@ -35,8 +35,8 @@ class RA:
 # solver skips every rule that hangs off it (the composition rule and the
 # training floor). Winter 2027 has neither block (Shivam, 2026-11-22): set both
 # to None for that run. Tier loads still apply either way.
-RETURNERS_ONLY_END: date | None = date(2026, 9, 13)   # Fall 2026: Sep 8-13, new RAs ineligible
-PAIRING_END: date | None = date(2026, 10, 18)         # Fall 2026: Sep 14-Oct 18, half experienced / half new
+RETURNERS_ONLY_END: date | None = None   # Winter 2027: no returners-only week. Fall 2026 was date(2026, 9, 13)
+PAIRING_END: date | None = None          # Winter 2027: no pairing period.       Fall 2026 was date(2026, 10, 18)
 
 BLOCK_RETURNERS_ONLY = "returners_only"
 BLOCK_PAIRING = "pairing"

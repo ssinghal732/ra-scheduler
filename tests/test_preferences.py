@@ -13,6 +13,14 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from datetime import date as _date
+
+# These tests exercise the Fall 2026 blocks (returners-only week, pairing
+# period). models.py now ships with both dates None (Winter 2027), so set them
+# here; the rules under test have not changed.
+from ra_scheduler import models as _models
+_models.RETURNERS_ONLY_END = _date(2026, 9, 13)
+_models.PAIRING_END = _date(2026, 10, 18)
 
 from ra_scheduler.models import (
     FRONT_DESK, GAME_ROOM, MAX_RANK_COST, MAX_WEEKEND_COST, RANK_COST,
@@ -21,7 +29,7 @@ from ra_scheduler.models import (
     RA, AvailabilityData, Preferences, ShiftInstance,
 )
 from ra_scheduler.roles import FD_P, FD_S, GR_P, GR_S, assign_roles
-from ra_scheduler.solver import _fairness_scale, _preference_cost
+from ra_scheduler.solver import _fairness_scale, _preference_cost, _pref_tier_max
 
 NORMAL_DAY = date(2026, 11, 7)      # after the pairing block
 PAIRING_DAY = date(2026, 10, 3)
@@ -43,7 +51,10 @@ def test_fairness_scale_exceeds_every_possible_preference_cost():
     worst = sum(s.seats * (MAX_RANK_COST if s.shift == "Evening (Weekday)"
                            else MAX_WEEKEND_COST) for s in shifts)
     assert _fairness_scale(shifts) > worst, "preferences could outweigh fairness"
-    assert _fairness_scale(shifts) == worst + 1, "scale should be tight, not arbitrary"
+    # With PREF_MINIMAX on, the preference tier also carries the worst-person
+    # term, so the scale must clear the whole tier, not just the plain total.
+    assert _fairness_scale(shifts) == _pref_tier_max(shifts) + 1, "scale should be tight, not arbitrary"
+    assert _pref_tier_max(shifts) >= worst
 
 
 def test_rank_cost_is_the_front_curve_one_point_per_step():

@@ -8,6 +8,14 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from datetime import date as _date
+
+# These tests exercise the Fall 2026 blocks (returners-only week, pairing
+# period). models.py now ships with both dates None (Winter 2027), so set them
+# here; the rules under test have not changed.
+from ra_scheduler import models as _models
+_models.RETURNERS_ONLY_END = _date(2026, 9, 13)
+_models.PAIRING_END = _date(2026, 10, 18)
 
 from ra_scheduler.models import RA, ShiftInstance, compute_targets
 from ra_scheduler.roles import FD_P, FD_S, GR_P, GR_S, RoleError, assign_roles
