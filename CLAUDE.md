@@ -74,83 +74,17 @@ Each was decided by Shivam with a reason, 2026-08-24 unless noted. Reopening the
 
 ## The measured facts
 
-All measured 2026-08-24 against the real grid (`26-27_RA_Duty_Schedule.xlsx`) and the confirmed roster. Re-verify against the real availability data when it lands.
-
-**The grid changed on 2026-08-26.** The leads' current file (`26-27 RA Duty Schedule (1).xlsx`, the one carrying the form responses in its `Fall Availability` tab) drops the Sept 8 and Sept 9 weekday evenings. **Now: 136 shifts, 440 seats, 84 duty dates, 2026-09-10 to 2026-12-13.** Returners-only block is 4 dates / 24 seats instead of 6 / 32. Pairing and normal blocks unchanged. `compute_targets()` re-derives from 440, and `_weekday_share()` from the new 232/440. Every figure below that says 448 or 138 was measured on the earlier file and is left as history. **Always run against the leads' latest file, never a cached copy.**
-
-**The grid, as first measured 2026-08-24,** was the full quarter, 2026-09-08 to 2026-12-13: 138 shift instances, 448 seats, 86 duty dates. Holidays (Nov 11, 17, 26, 27) are written as the literal word "Holiday" across the slot cells, not a flag column. The week of Sept 21-27 has no duty at all.
-
-**Rule blocks:** returners-only Sept 8-13 (6 dates, 32 seats), pairing Sept 14-Oct 18 (28 dates, 144 seats), normal Oct 19-Dec 13 (52 dates, 272 seats). The pairing block is exactly 4 duty weeks once the gap week is skipped, matching Shivam's "4 week period."
-
-**Roster:** 43 RAs = 3 LRA + 14 returners + 26 new, so 17 experienced. Loads: new = baseline, returner = baseline - 1, LRA = half. At 448 seats that derives to targets of 11 / 10 / 5.
-
-**Staffing per shift:** weekday evening 2 FD + 2 GR; weekend morning and afternoon 2 FD; weekend evening 2 FD + 2 GR. Duty-round location alternates per date and is carried from the grid, never chosen.
-
-**The proven run** (synthetic availability, real everything else): OPTIMAL in under 60s, ~5,900 boolean variables, 0 violations from the independent validator, max deviation 1 (LRA all 5, returners 10-11, new 11-12), all 26 new RAs at or above the training floor, all 28 pairing-period evening shifts with mixed Primary and Secondary pairs.
-
-**Last year's schedule, replayed 2026-08-24** (`25-26 RA Duty Schedule.xlsx`, Fall sheet, 148 shifts / 480 seats / 45 names). Every shift carried exactly the right headcount. `validate.py` returned 6 findings: 5 of them come from one date, 2025-12-14, where a single name is written into all 8 slots and appears nowhere else in the quarter; the sixth is a genuine Morning-to-Afternoon back-to-back on 2025-09-20.
-
-**The replay's own limit, and it is a real one:** that workbook has an `RA Duty Swaps` sheet with 355 records. The schedule sheet is the PLAN, not the record of what happened. 2025-09-20 alone saw 7 swaps. So a row that looks like a violation may have been fixed, and a clean row may have been swapped into a problem. Validating against last year's sheet validates a plan that was amended 355 times; treat "replay last year" as weak evidence, not proof.
-
-**Availability replay** (last year's `RA Duty Availability (FALL)`, 42 responses): 44 weekday Class-Conflict marks across 31 people, 168 blackout dates across 38. After joining, 406 of 480 assignments were checkable. The plan contained 5 people scheduled on a weekday they marked unavailable and 3 on a date they listed as an exception, four of those inside finals week, the most-swapped week of the quarter. Same caveat applies.
-
-**Spread across the quarter, A/B measured 2026-08-27 on the current grid.** Without the term: 99 person-weeks carrying 2+ shifts, one person with 4 in a week, some RAs 80% done by week 4 and others not until the last week. With it: 13, 2, and everyone's 80% mark between weeks 5 and 12. Max deviation unchanged, weekday and weekend preferences unchanged, preference cost 0 -> 1.
-
-**Weekday/weekend balance, A/B measured 2026-08-26 on the real grid, same inputs.** RAs on their ideal mix 12/43 -> 38/43; worst imbalance 4 shifts -> 1. Max deviation unchanged at 1, weekday preference unchanged at 99%, weekend unchanged at 100%. **It cost nothing.** The prediction that preferences would drop was wrong: the solver already had many equally-optimal schedules and was picking among them arbitrarily, so the balance term selected a better one from the same set. The 5 RAs left at +1 are forced arithmetic, not a miss: the ideals sum to 235 against 240 weekday seats.
+**Current grid: 136 shifts, 440 seats, 84 duty dates, 2026-09-10 to 2026-12-13** (the leads' file of 2026-08-26 dropped the Sept 8 and 9 evenings). Returners-only block is 4 dates / 24 seats. `compute_targets()` and `_weekday_share()` re-derive from whatever grid is loaded. **Always run against the leads' latest file, never a cached copy.**
 
 **Watch out when A/B testing the objective:** the first comparison was invalid because the balance feature has TWO terms (a worst-case and a sum) and only one was being switched off. Both weights are now named constants (`W_MAXIMB`, `W_IMBSUM`) so an off switch is really off.
 
-**Preferences, measured 2026-08-26 on the real grid with synthetic preferences.** 237 of 240 weekday shifts landed on a 1st or 2nd choice day (99%); 41 of 43 RAs got 100% of theirs. Every weekend shift matched both the day and time asked for (188/188). Desks 212/275 (77%), lower because a pairing shift puts one person at each desk and both may want the same one. Fairness unchanged: max deviation 1, LRA all 5. Total preference cost 3.
-
-**Desk seating, examined 2026-08-26.** 78% overall (79% before desk-pair training was enforced), and the remaining misses are mostly not fixable in `roles.py`: 34 of 57 land on weekend Morning/Afternoon shifts that have no game room at all, so the person was already assigned there before slotting saw them. Pairing shifts run 90%, normal 4-person shifts 89%. The greedy split was measured and is already optimal; the win came from choosing WHICH experienced RA pairs with WHICH new RA, which was previously left to a shuffled index and is worth 8 seats.
-
-**Shivam's read was right:** there is enough capacity that fairness and preferences barely conflict. Whether that holds on real rankings depends on how lopsided they are, which the synthetic distribution cannot tell us.
-
-**Weekday concentration, measured 2026-08-26.** Last year by hand: median RA did 62% of their weekday evenings on their most-used day, 23 of 42 at 60%+, only 5 of 44 on a single weekday. Our solver: median 50%, which is what scattering across free days produces.
-
-**62% is a benchmark, not a target** (Shivam pushed on this, correctly). The grid holds 48 weekday-evening seats on each of the five days, 240 total, 5.6 per RA across 43 RAs. Spread 43 people evenly over 5 days and each day's 48 seats hold exactly 5.6 shifts per person, so 100% concentration is mathematically possible with evenly-spread rankings. What actually caps it is how lopsided the real rankings are, plus availability and the differing tier loads. Tune the weight up against real data and measure where fairness starts to give; do not code a target number.
+Every measurement behind the standing decisions (grid as first measured, roster, proven runs, last year's replay, the A/B tests for spread, balance, preferences, desk seating, weekday concentration, feasibility margin) lives in [documents/measured-facts.md](documents/measured-facts.md). Read it before tuning a weight or reopening a number.
 
 ---
 
-## The form as shipped (read 2026-08-26 from `DutyAvailForm_FA26.pdf`)
+## The form as shipped
 
-**Deadline: Thursday 08/27, 11:59 pm.** Building the parser Thursday daytime means working against a partial response set. The complete set exists Friday morning.
-
-**Fixes that landed:** the weekday ranking is now 1-5 across five rows Monday-Friday (this was the data-corrupting defect; it is fixed). Weekday and weekend definitions are consistent on every page, and Friday is nowhere called a weekend. Shivam fixed the page-3 header contradiction himself on 08-26.
-
-**Fixes that did not land, and do not matter:** the weekend checkbox still mixes day and time in one multi-select. It needs no fix, because every option is self-identifying: `[Saturdays]` / `[Sundays]` / `[Open]` are days, `[Morning]` / `[Afternoon]` / `[Evening]` are times. The parser splits them.
-
-**Date instructions got much stricter, aimed squarely at last year's failures:**
-`**FORMAT: MM/DD (Reason)**`, no year, no month names, ranges written out one date per line. `NOT: 10/10/26`. `DO NOT say: Mar 12 OR March 12`.
-
-**What the parser must handle, per question:**
-
-| Form question | Signal | Parser note |
-|---|---|---|
-| Email (auto-recorded) | the join key | The only stable key. Never join on names. |
-| RA Name | display only | Free text, inconsistent. Do not key on it. |
-| "What time do your weekdays end?" | ignored in v1 | Standing decision. Messiest free text on the form. |
-| Weekday ranking 1-5 + Class Conflict | **hard** (Conflict) and **soft** (the rank) | The rank is what task #4 needs. **Capture it even though the solver ignores it today**, or Thursday's work gets redone. |
-| "Weekday DATES you CANNOT do" (page 4) | hard | Weekday-only subset. |
-| "ALL DATES you CANNOT do" (page 6) | hard | Superset, weekdays AND weekends. **Union both columns**; both are required and people will half-fill one. |
-| Weekend day/time checkbox | soft | One multi-select, split by bracketed label. |
-| Shift location (FD / GR / either) | soft | Single choice, three options. |
-| Two "additional concerns" free-text boxes | manual | Weekend hard can't-dos hide here. Hand-encoded in v1. |
-
-**What the first 7 real responses showed (2026-08-26), which the PDF could not:**
-- The ranking grid exports as five columns whose headers end `[Monday]` .. `[Friday]`. Values are **floats** (`1.0`) mixed with the string `Class Conflict/Unavailable` in the same column.
-- The weekend checkbox exports as one comma-joined string with the bracket labels intact.
-- **People wrote `12/9` and `9/10`, not `12/09` and `09/10`.** A fixed five-character chop fails. The parser reads `M/D` or `MM/DD` off the front of each entry instead. Same decision, wider front.
-- **About half used commas, not newlines**, despite the instruction. Split on both.
-- **The two date boxes are not the subset the form implies.** One person put 15 dates in the weekday box and a different 7 in the all-dates box. Unioned, disagreement flagged.
-- One person wrote `Oct. 17`. Reported, not guessed.
-- 2 of 7 respondents' emails were not on the roster.
-
-**The form makes a promise the solver currently cannot keep.** Twice it tells RAs: "Seventh College RAs will be assigned a week day per their availability each quarter," and "We will do our best to ensure you have your first or second most preferred weekday." The solver reads the ranking only for its Class Conflict marker and throws the ranks away. See AiCC task #4.
-
----
-
-**Feasibility margin worth knowing:** the returners-only week is 32 seats over 17 experienced RAs, about 1.9 shifts each. Comfortable with generous availability; the first thing to re-check on real data.
+The Fall 2026 form, page by page, with what the first real responses showed: [documents/fall-2026-form.md](documents/fall-2026-form.md). What the parser needs from any version of the form is the keyword table in `parse_form.py` (`COLUMN_KEYS`) plus five ranking columns ending `[Monday]`..`[Friday]`.
 
 ---
 

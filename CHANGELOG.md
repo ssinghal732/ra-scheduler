@@ -9,6 +9,17 @@ New entry template:
 - What shipped, in plain words.
 -->
 
+## 2026-11-22
+
+Back after two months, for the Winter 2027 quarter. Every decision below is Shivam's; the measurements are CC's.
+
+- **Winter form accepted with two changes from the duty leads:** the weekday-dates box is gone (all-dates box stays), and the weekend checkbox is now a 1-6 ranking grid over Saturday/Sunday x Morning/Afternoon/Evening with an "Unavailable (must explain why)" column and a proof page. Verified against last year's winter export that every parser keyword still matches; only the weekday-dates column is missing, which becomes optional.
+- **Fall feedback from the duty leads, read and measured.** Grievances: open people got 4th/5th choices; same weekday all quarter even when it was a bad day; duplicate ranks gamed the system. Replayed the published Fall sheet and the finalized tab against the rankings: the published sheet had 27 shifts at 4th/5th and matched the solver's output on only 5-9 of 140 shifts. Per Shivam, the leads built it by hand from a lookup tab. The solver's own output had 5 such shifts and a different flaw: 10 people with zero 1st-choice shifts and 4 people with every shift on their 3rd choice, because the preference total is blind to who pays it.
+- **Two solver flags added, both off, both measured on the Fall grid and responses:** `PREF_MINIMAX` (minimize the worst single person's preference total, above the plain total) and `PREF_SEAT_MINIMAX` (above that, minimize the costliest single seat anyone gets). Fairness unchanged in every run. Findings: the curve is the big lever (1st-choice share 49% to 77% once 2nd costs 1); worst-person alone spreads misses but hands 9-10 people a 4th/5th; the two-stage version holds everyone at 3rd or better at the cost of 8 people carrying 4-5 third-choice shifts. The grid forces about 30 Friday seats onto people who did not ask for Friday; no model removes that.
+- **Decided:** weekday curve 0/1/2/3/4, weekend curve 0/1/2/3/4/5, worst-person spreading on, worst-seat stage pending the leads' answer, no floors, no home-day model. Weekend unavailable flags everyone, all six stops. Duplicate ranks stop the run.
+- **CLAUDE.md trimmed** (Shivam's pick from a /doctor pass): the measured-facts and Fall-form sections moved to `documents/measured-facts.md` and `documents/fall-2026-form.md` with pointers. About 2.3k tokens less per request.
+- **Housekeeping:** the leads' feedback and the form draft (PDFs with names) moved into gitignored `references/`.
+
 ## 2026-08-24
 
 The whole v1, planned and built in one session, three days before real data arrives. Every design decision below was Shivam's; Claude surfaced options with one recommendation and a tradeoff each.

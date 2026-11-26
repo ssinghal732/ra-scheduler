@@ -52,6 +52,12 @@ TRAIN_FLOOR = 2                     # Q1: minimum pairing-period shifts per new 
 W_TRAIN, W_MAXDEV, W_MAXIMB = 5000, 1000, 100   # P1 > P2 > P3
 W_IMBSUM = 1                        # spread of the weekday/weekend mix
 W_WEEK = 3                          # each shift beyond MAX_SHIFTS_PER_WEEK in one week
+PREF_MINIMAX = False                # option A (2026-11-22, under test): also minimize the
+                                    # worst single person's preference total, weighted so
+                                    # one point of "worst" beats any reshuffle of the total
+PREF_SEAT_MINIMAX = False           # option A, two-stage (under test): above that, minimize
+                                    # the worst single seat anyone gets (nobody's 5th choice
+                                    # if the grid allows it), then spread, then the total
 
 
 def week_of(d: date, first: date) -> int:
@@ -81,16 +87,33 @@ def _preference_cost(shift: ShiftInstance, data: AvailabilityData, ra_id: str) -
     return prefs.weekend_cost(shift.dow, label) if label else 0
 
 
+def _worst_total_pref(shifts: list[ShiftInstance]) -> int:
+    """The largest preference total any schedule on this grid could pay."""
+    return sum(s.seats * (MAX_RANK_COST if s.shift == "Evening (Weekday)"
+                          else MAX_WEEKEND_COST)
+               for s in shifts)
+
+
 def _fairness_scale(shifts: list[ShiftInstance]) -> int:
     """Big enough that all preferences together cannot outweigh one unit of fairness.
 
     Derived from the grid rather than hardcoded, the same way targets are, so a
     changed grid or a changed cost curve cannot quietly invert the priority.
+    With PREF_MINIMAX on, the preference tier also carries the worst-person term
+    at weight (worst_total + 1), so the scale grows to cover that too.
     """
-    worst = sum(s.seats * (MAX_RANK_COST if s.shift == "Evening (Weekday)"
-                           else MAX_WEEKEND_COST)
-                for s in shifts)
-    return worst + 1
+    return _pref_tier_max(shifts) + 1
+
+
+def _pref_tier_max(shifts: list[ShiftInstance]) -> int:
+    """Largest value the whole preference tier can take, given the flags."""
+    worst = _worst_total_pref(shifts)
+    top = worst                                   # plain total
+    if PREF_MINIMAX:
+        top += (worst + 1) * worst                # worst person, weight worst+1
+    if PREF_SEAT_MINIMAX:
+        top += (top + 1) * max(MAX_RANK_COST, MAX_WEEKEND_COST)   # worst seat, above both
+    return top
 
 
 @dataclass
@@ -102,6 +125,8 @@ class SolveResult:
     max_deviation: int
     training_shortfalls: dict[str, int]   # new RAs below the floor -> missing shifts
     preference_cost: int = 0              # total soft-preference points paid
+    worst_person_pref: int = 0            # option A: largest single person's preference total
+    worst_seat_pref: int = 0              # option A two-stage: costliest single seat anyone got
     max_imbalance: int = 0                # worst weekday/weekend mix, shifts from ideal
     weekday_counts: dict[str, int] = field(default_factory=dict)
     ideal_weekday: dict[str, int] = field(default_factory=dict)   # tier -> ideal
@@ -228,6 +253,34 @@ def solve(
     ]
     scale = _fairness_scale(shifts)
 
+    # Option A: the worst single person's preference total, lexicographically
+    # above the plain total (weight = worst possible total + 1) and below fairness.
+    worst_pref = worst_seat = None
+    pref_objective = sum(pref_terms)
+    worst_total = _worst_total_pref(shifts)
+    if PREF_MINIMAX:
+        person_pref = {}
+        for ra in data.roster:
+            pp = m.NewIntVar(0, worst_total, f"pref_{ra.ra_id}")
+            m.Add(pp == sum(
+                _preference_cost(shifts[sid], data, rid) * v
+                for (rid, sid), v in x.items()
+                if rid == ra.ra_id and _preference_cost(shifts[sid], data, rid)
+            ))
+            person_pref[ra.ra_id] = pp
+        worst_pref = m.NewIntVar(0, worst_total, "worst_pref")
+        for pp in person_pref.values():
+            m.Add(worst_pref >= pp)
+        pref_objective = (worst_total + 1) * worst_pref + sum(pref_terms)
+    if PREF_SEAT_MINIMAX:
+        below = worst_total + ((worst_total + 1) * worst_total if PREF_MINIMAX else 0)
+        worst_seat = m.NewIntVar(0, max(MAX_RANK_COST, MAX_WEEKEND_COST), "worst_seat")
+        for (rid, sid), v in x.items():
+            c = _preference_cost(shifts[sid], data, rid)
+            if c:
+                m.Add(worst_seat >= c * v)
+        pref_objective = (below + 1) * worst_seat + pref_objective
+
     m.Minimize(
         scale * (
             W_TRAIN * sum(shortfall_vars.values())
@@ -237,7 +290,7 @@ def solve(
             + W_IMBSUM * sum(imb_vars.values())
             + W_WEEK * sum(excess_vars)
         )
-        + sum(pref_terms)
+        + pref_objective
     )
 
     sv = cp_model.CpSolver()
@@ -266,6 +319,8 @@ def solve(
             for (rid, sid), v in x.items() if sv.Value(v)
         ),
         max_imbalance=sv.Value(max_imb),
+        worst_person_pref=sv.Value(worst_pref) if worst_pref is not None else 0,
+        worst_seat_pref=sv.Value(worst_seat) if worst_seat is not None else 0,
         weekday_counts={rid: sv.Value(w) for rid, w in wk_vars.items()},
         ideal_weekday=ideal_weekday,
         week_excess=sum(sv.Value(e) for e in excess_vars),

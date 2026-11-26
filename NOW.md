@@ -6,17 +6,26 @@ RA Scheduler: fills the Seventh College quarterly duty schedule (440 seats, 136 
 
 Built end to end 2026-08-24, extended through 2026-08-26 (preferences, balance, parser, all verified on real partial data). Form closes 2026-08-27 at 11:59 pm; complete response set exists 2026-08-28. Product docs start 2026-08-27.
 
-## Next session starts here (updated 2026-09-02)
+## Next session starts here (updated 2026-11-22)
 
-**Waiting on people, not code.** The leads digest (`~/Downloads/constraints_for_leads.txt`) is ready for Shivam to send on Teams. It names the one conflict (two Saturday evenings on 11/14 and 12/12 that must move) and the two questions (exact flight-home dates; the weekend-mornings contradiction).
+**Winter 2027 is the target.** Duty begins 2027-01-03. The leads' draft form is accepted (local copy in `references/`, gitignored). Shivam's proposed timeline: form out ~Nov 22, due Nov 25, chase Nov 26-27, schedule delivered Nov 28-29. His CMU SOP is due Dec 9, so scheduler time is scarce.
 
-Decisions pending, all Shivam's:
-1. **Exclusions input, or hand-swap?** Seven hard constraints from the concerns boxes need a permanent home or every rerun reintroduces the Saturday-evenings conflict. CC recommends the exclusions file (~15 lines: person + day + shift subtracted from availability, flagged every run); it is also where the leads' answers would land.
-2. **Task #6: Google Sheets vs website for v2.** Discussion still not had. Docs 2 and 3 wait on it.
-3. Fix the 25 stale roster emails before winter (each flag names the address).
-4. Hours for 08-31 and 09-01 not logged.
+**Waiting on the duty leads** for two answers Shivam texted on 11-22: (1) when a scarce day (Friday had 3 first choices in Fall) must be covered by people who did not want it, should nobody ever get a 4th/5th choice (a few people carry 4-5 third-choice shifts) or should it spread thinner (about 9 people get one 4th/5th)? (2) Same weekday every week on your first-choice day, or mixed across 1st and 2nd? Both map to flags already in the solver, see below.
 
-The no-NLP boundary, set 08-31 after Shivam pushed on it: a model may propose, only a file a human approved may constrain. The parser stays deterministic.
+**Decided 2026-11-22, Shivam:**
+- Weekday rank curve becomes 0/1/2/3/4 ("front": 2nd costs a little). Weekend ranks (new 1-6 grid) mirror it, 0/1/2/3/4/5. Reverses the 08-26 "0/0/1/2/3" curve; the form's "first or second" promise is a floor, not indifference.
+- Worst-person spreading (option A) wanted; the worst-seat stage (two-stage) is CC's recommendation and the leads' answer decides. No floors (option B rejected as a band-aid), no home-day model (D rejected).
+- Weekend unavailable: FLAG anyone with any weekend shift unavailable (leads ask for proof); all six = STOP.
+- Duplicate ranks: STOP and resubmit. Also tell the leads to switch on "Limit to one response per column" and "Require a response in each row" on both grid questions.
+- Winter has no tier-gated weeks; load differences still apply; grid sheet is likely "Winter Duty Schedule".
+
+**Code state:** `solver.py` carries `PREF_MINIMAX` and `PREF_SEAT_MINIMAX`, both off, both measured (table in CHANGELOG 2026-11-22). Tests pass with them off. Uncommitted: the solver flags, the CLAUDE.md trim, two new `documents/*.md`.
+
+**Next, in order:** parser for the Winter form (six weekend rank columns + Unavailable, optional weekday-dates box, the three new STOP/FLAG rules); weekend rank cost in the solver; two Winter guards (skip the training floor when the grid has no pairing shifts; `--grid-sheet` flag); the front curve behind a flag; then flip whichever stage the leads choose.
+
+**What Shivam needs to do:** submit one test response to the live Winter form and export the responses sheet, so the parser is built on the real column headers rather than the PDF. Confirm the weekend grid is marked required. Update the roster (25 stale emails from Fall; tiers unchanged).
+
+**Fall, for the record:** the schedule the RAs received was, per Shivam, hand-made by the leads from the "Fall Automated Preferences" lookup tab, not the solver output (5-9 of 140 shifts matched). The leads' grievances were measured against that sheet. See CHANGELOG 2026-11-22.
 
 ## The first real run happened (2026-08-28)
 
