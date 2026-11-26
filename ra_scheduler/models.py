@@ -124,21 +124,37 @@ FRONT_DESK, GAME_ROOM = "Front Desk", "Game Room"
 # in roles.py AFTER the schedule exists, which is what keeps it last and stops
 # it from ever pulling somebody off the day or time they asked for.
 #
-# The form promises "your first or second most preferred weekday", so ranks 1
-# and 2 both count as kept. Past that the cost climbs by one per step: enough
-# to steer, gentle enough that a 5th choice is not treated as a catastrophe.
-RANK_COST = {1: 0, 2: 0, 3: 1, 4: 2, 5: 3}
+# Two weekday curves. "Today" (2026-08-26) read the form's "first or second
+# most preferred weekday" as indifference between 1st and 2nd. "Front"
+# (Shivam, 2026-11-22) makes 2nd cost one point: on Fall data that alone
+# lifted 1st-choice seats from 49% to 77%, because the solver had been handing
+# out 2nd choices freely. Each step past that still adds one; a 5th choice is
+# steered away from, not treated as a catastrophe. Flip by changing RANK_COST.
+RANK_COST_TODAY = {1: 0, 2: 0, 3: 1, 4: 2, 5: 3}
+RANK_COST_FRONT = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4}
+RANK_COST = RANK_COST_FRONT
 MAX_RANK_COST = max(RANK_COST.values())
+
+# Weekend, two shapes of answer. Fall 2026 asked a checkbox (preferred day,
+# preferred times); Winter 2027 asks a 1-6 ranking over the six weekend slots.
+# The ranking mirrors the weekday front curve (Shivam, 2026-11-22): one point
+# per step away from what was asked, so a 6th choice of six costs 5.
 WRONG_WEEKEND_DAY, WRONG_WEEKEND_TIME = 2, 1
-MAX_WEEKEND_COST = WRONG_WEEKEND_DAY + WRONG_WEEKEND_TIME
+WEEKEND_RANK_COST = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5}
+MAX_WEEKEND_COST = max(WRONG_WEEKEND_DAY + WRONG_WEEKEND_TIME, max(WEEKEND_RANK_COST.values()))
+
+# A weekend slot as the form names it: "Saturday Morning" .. "Sunday Evening".
+WEEKEND_SLOTS = tuple(f"{d} {t}" for d in ("Saturday", "Sunday")
+                      for t in ("Morning", "Afternoon", "Evening"))
 
 
 @dataclass
 class Preferences:
     """One RA's soft preferences, in the shape the form collects them."""
     weekday_rank: dict[str, int] = field(default_factory=dict)   # "Monday" -> 1..5
-    weekend_days: set[str] = field(default_factory=set)          # {"Saturday"}; empty = open
-    weekend_times: set[str] = field(default_factory=set)         # {"Morning","Evening"}; empty = any
+    weekend_rank: dict[str, int] = field(default_factory=dict)   # "Saturday Morning" -> 1..6 (Winter form)
+    weekend_days: set[str] = field(default_factory=set)          # {"Saturday"}; empty = open (Fall form)
+    weekend_times: set[str] = field(default_factory=set)         # {"Morning","Evening"}; empty = any (Fall form)
     location: str = ""                                           # FRONT_DESK | GAME_ROOM | "" = either
 
     def weekday_cost(self, dow: str) -> int:
@@ -146,6 +162,9 @@ class Preferences:
         return RANK_COST.get(rank, 0) if rank else 0
 
     def weekend_cost(self, dow: str, time_label: str) -> int:
+        if self.weekend_rank:                       # the ranking grid wins when present
+            rank = self.weekend_rank.get(f"{dow} {time_label}")
+            return WEEKEND_RANK_COST.get(rank, 0) if rank else 0
         day = 0 if not self.weekend_days or dow in self.weekend_days else WRONG_WEEKEND_DAY
         time = 0 if not self.weekend_times or time_label in self.weekend_times else WRONG_WEEKEND_TIME
         return day + time

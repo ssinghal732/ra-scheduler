@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ra_scheduler.models import (
     FRONT_DESK, GAME_ROOM, MAX_RANK_COST, MAX_WEEKEND_COST, RANK_COST,
+    RANK_COST_FRONT, RANK_COST_TODAY, WEEKEND_RANK_COST,
     WRONG_WEEKEND_DAY, WRONG_WEEKEND_TIME,
     RA, AvailabilityData, Preferences, ShiftInstance,
 )
@@ -45,11 +46,29 @@ def test_fairness_scale_exceeds_every_possible_preference_cost():
     assert _fairness_scale(shifts) == worst + 1, "scale should be tight, not arbitrary"
 
 
-def test_rank_cost_treats_first_and_second_choice_as_kept():
-    """The form promises 'your first or second most preferred weekday'."""
-    assert RANK_COST[1] == RANK_COST[2] == 0
-    assert RANK_COST[3] < RANK_COST[4] < RANK_COST[5]
-    assert RANK_COST[5] - RANK_COST[4] == RANK_COST[4] - RANK_COST[3], "steps stay gentle"
+def test_rank_cost_is_the_front_curve_one_point_per_step():
+    """Shivam 2026-11-22: 2nd costs a little (0/1/2/3/4). The 08-26 curve, which
+    treated 1st and 2nd alike, is kept as RANK_COST_TODAY for replays."""
+    assert RANK_COST is RANK_COST_FRONT
+    assert RANK_COST[1] == 0 and RANK_COST[2] == 1
+    for k in (2, 3, 4, 5):
+        assert RANK_COST[k] - RANK_COST[k - 1] == 1, "steps stay gentle"
+    assert RANK_COST_TODAY[1] == RANK_COST_TODAY[2] == 0
+
+
+def test_weekend_rank_mirrors_the_weekday_curve():
+    """Winter grid: one point per step away from the asked-for slot; 6th of six costs 5."""
+    assert [WEEKEND_RANK_COST[k] for k in range(1, 7)] == [0, 1, 2, 3, 4, 5]
+    d = _data(Preferences(weekend_rank={"Saturday Morning": 1, "Sunday Evening": 6}))
+    assert _preference_cost(_shift("Morning", dow="Saturday"), d, "A") == 0
+    assert _preference_cost(_shift("Evening (Weekend)", dow="Sunday"), d, "A") == 5
+    assert _preference_cost(_shift("Afternoon", dow="Sunday"), d, "A") == 0   # unranked slot, no opinion
+    assert _preference_cost(_shift(dow="Monday"), d, "A") == 0                # weekend ranks never touch weekdays
+
+
+def test_weekend_grid_wins_over_the_checkbox_when_both_are_set():
+    d = _data(Preferences(weekend_rank={"Sunday Morning": 3}, weekend_days={"Saturday"}))
+    assert _preference_cost(_shift("Morning", dow="Sunday"), d, "A") == WEEKEND_RANK_COST[3]
 
 
 # --------------------------------------------------------------------------- #

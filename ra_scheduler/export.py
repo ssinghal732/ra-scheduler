@@ -117,9 +117,13 @@ def _availability_rows(shifts, data: AvailabilityData, roles) -> list[tuple]:
                 cells.append(f"{rank}" if rank else "Available")
             else:
                 cells.append(_UNAVAILABLE)
-        wk = " / ".join(x for x in (
-            ", ".join(sorted(prefs.weekend_days)) or "any day",
-            ", ".join(sorted(prefs.weekend_times)) or "any time") if x)
+        if prefs.weekend_rank:      # Winter grid: slots in rank order, "1 Sat Morning, 2 Sun Evening, ..."
+            wk = ", ".join(f"{k} {slot[:3]} {slot.split()[1]}"
+                           for slot, k in sorted(prefs.weekend_rank.items(), key=lambda kv: kv[1]))
+        else:                       # Fall checkbox
+            wk = " / ".join(x for x in (
+                ", ".join(sorted(prefs.weekend_days)) or "any day",
+                ", ".join(sorted(prefs.weekend_times)) or "any time") if x)
         got, tot = kept.get(ra.ra_id, [0, 0])
         days = worked.get(ra.ra_id, Counter())
         # "Mon x4, Wed x1", most-worked day first: their duty day at a glance

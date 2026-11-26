@@ -170,7 +170,8 @@ def _shifts():
                           shift="Evening (Weekday)", time="", rounds="", week="1")]
 
 
-def test_join_falls_back_to_full_name_and_flags_it():
+def test_join_falls_back_to_full_name_without_a_finding():
+    """Shivam 2026-11-25: a name match is not a finding any more, just a count."""
     import tempfile
     from ra_scheduler import parse_form
     ro, fo = _fixture(tempfile.mkdtemp(),
@@ -178,8 +179,8 @@ def test_join_falls_back_to_full_name_and_flags_it():
                       [_row("privera@ucsd.edu", "Pat Rivera")])
     data, rep = parse_form.load(ro, fo, _shifts())
     assert "alias@ucsd.edu" in data.available, "should key on the ROSTER id after matching"
-    msgs = [f.message for f in rep.findings]
-    assert any("matched by full name" in m for m in msgs)
+    assert not any("matched by" in f.message for f in rep.findings)
+    assert "1 joined by name" in rep.matched["responses used"]
     assert not rep.must_stop
 
 
@@ -191,7 +192,7 @@ def test_join_falls_back_to_unique_first_name():
                       [_row("privera@ucsd.edu", "Pat"), _row("x@ucsd.edu", "Sam Lee")])
     data, rep = parse_form.load(ro, fo, _shifts())
     assert "alias@ucsd.edu" in data.available
-    assert any("matched by first name only" in f.message for f in rep.findings)
+    assert not any("matched by" in f.message for f in rep.findings)
     assert not rep.must_stop
 
 
@@ -226,6 +227,139 @@ def test_two_submissions_resolving_to_one_person_stops():
     _, rep = parse_form.load(ro, fo, _shifts())
     assert rep.must_stop
     assert any("two different form submissions resolved" in f.message for f in rep.findings)
+
+
+# --------------------------------------------------------------------------- #
+# the Winter 2027 shape: six-slot weekend ranking grid, no weekday-dates box
+# --------------------------------------------------------------------------- #
+
+WINTER_HDR = (["Timestamp", "Email Address", "RA Name", "What time do your weekdays end?"]
+              + ["Duty Weekdays: ... [%s]" % d for d in ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")]
+              + ["Any additional concerns related to Weekday Duty Scheduling"]
+              + ["Duty Weekends: ... [%s]" % s for s in
+                 ("Saturday Morning", "Saturday Afternoon", "Saturday Evening",
+                  "Sunday Morning", "Sunday Afternoon", "Sunday Evening")]
+              + ["If you have indicated you are unavailable ... Please also indicate any additional "
+                 "concerns related to Weekend Duty Scheduling",
+                 "Please identify ALL of the DATES you CANNOT do. This includes weekdays AND weekends",
+                 "Duty Preferences - Shift Location", "Column 19"])
+
+UNAVAIL = "Unavaliable (MUST EXPLAIN WHY)"      # the draft's spelling; the parser does not match the word
+
+
+def _winter_fixture(tmpdir, form_rows, roster_rows=(("a@ucsd.edu", "Pat Rivera", "New"),)):
+    from openpyxl import Workbook
+    ro = Workbook(); ws = ro.active
+    ws.append(["Email", "Name", "Tier"])
+    for r in roster_rows: ws.append(list(r))
+    ro.save(f"{tmpdir}/roster.xlsx")
+    fo = Workbook(); ws = fo.active
+    ws.append(WINTER_HDR)
+    for r in form_rows: ws.append(list(r))
+    fo.save(f"{tmpdir}/form.xlsx")
+    return f"{tmpdir}/roster.xlsx", f"{tmpdir}/form.xlsx"
+
+
+def _winter_row(weekday=(1.0, 2.0, 3.0, 4.0, 5.0), weekend=(1.0, 2.0, 3.0, 4.0, 5.0, 6.0),
+                email="a@ucsd.edu", name="Pat Rivera", dates="N/A"):
+    from datetime import datetime
+    return ((datetime(2026, 11, 23, 9), email, name, "free") + tuple(weekday) + ("no",)
+            + tuple(weekend) + ("na", dates, "I am open ... either", None))
+
+
+def _winter_shifts():
+    from ra_scheduler.models import ShiftInstance
+    mk = lambda i, d, dow, sh: ShiftInstance(sid=i, date=d, dow=dow, shift=sh, time="", rounds="", week="1")
+    return [mk(0, date(2027, 1, 4), "Monday", "Evening (Weekday)"),
+            mk(1, date(2027, 1, 9), "Saturday", "Morning"),
+            mk(2, date(2027, 1, 9), "Saturday", "Afternoon"),
+            mk(3, date(2027, 1, 9), "Saturday", "Evening (Weekend)"),
+            mk(4, date(2027, 1, 10), "Sunday", "Morning"),
+            mk(5, date(2027, 1, 10), "Sunday", "Afternoon"),
+            mk(6, date(2027, 1, 10), "Sunday", "Evening (Weekend)")]
+
+
+def test_winter_grid_is_read_into_weekend_ranks_and_dates_box_is_optional():
+    import tempfile
+    from ra_scheduler import parse_form
+    with tempfile.TemporaryDirectory() as td:
+        ro, fo = _winter_fixture(td, [_winter_row(weekend=(2.0, 1.0, 6.0, 3.0, 4.0, 5.0), dates="1/9 (trip)")])
+        data, rep = parse_form.load(ro, fo, _winter_shifts())
+    assert not rep.must_stop, [str(f) for f in rep.findings]
+    assert rep.matched["weekday_dates"] == "(absent, optional)"
+    assert rep.matched["weekend_pref"] == "(absent, optional)"
+    assert "6 columns" in rep.matched["weekend ranks"]
+    p = data.prefs("a@ucsd.edu")
+    assert p.weekend_rank == {"Saturday Morning": 2, "Saturday Afternoon": 1, "Saturday Evening": 6,
+                              "Sunday Morning": 3, "Sunday Afternoon": 4, "Sunday Evening": 5}
+    assert p.weekend_days == set() and p.weekend_times == set()
+    assert date(2027, 1, 9) in data.blackout_dates["a@ucsd.edu"]       # the one remaining dates box still counts
+    assert len(data.available["a@ucsd.edu"]) == 4                        # 7 shifts minus the 3 on Jan 9
+
+
+def test_winter_unavailable_slot_leaves_availability_and_flags_for_proof():
+    import tempfile
+    from ra_scheduler import parse_form
+    with tempfile.TemporaryDirectory() as td:
+        ro, fo = _winter_fixture(td, [_winter_row(weekend=(1.0, 2.0, UNAVAIL, 3.0, 4.0, "unavailable"))])
+        data, rep = parse_form.load(ro, fo, _winter_shifts())
+    assert not rep.must_stop, [str(f) for f in rep.findings]
+    ok = data.available["a@ucsd.edu"]
+    assert len(ok) == 5
+    assert not any("Saturday" in k and "Evening" in k for k in ok)
+    assert not any("Sunday" in k and "Evening" in k for k in ok)
+    flags = [f for f in rep.findings if f.severity == FLAG and "proof required" in f.message]
+    assert len(flags) == 1 and "Saturday Evening, Sunday Evening" in flags[0].message
+    assert data.prefs("a@ucsd.edu").weekend_rank == {"Saturday Morning": 1, "Saturday Afternoon": 2,
+                                                     "Sunday Morning": 3, "Sunday Afternoon": 4}
+
+
+def test_winter_all_six_unavailable_stops():
+    import tempfile
+    from ra_scheduler import parse_form
+    with tempfile.TemporaryDirectory() as td:
+        ro, fo = _winter_fixture(td, [_winter_row(weekend=(UNAVAIL,) * 6)])
+        _, rep = parse_form.load(ro, fo, _winter_shifts())
+    assert rep.must_stop
+    assert any("ALL SIX weekend" in f.message for f in rep.findings)
+
+
+def test_duplicate_rank_stops_in_either_grid():
+    import tempfile
+    from ra_scheduler import parse_form
+    with tempfile.TemporaryDirectory() as td:
+        ro, fo = _winter_fixture(td, [_winter_row(weekday=(1.0, 2.0, 3.0, 4.0, 4.0))])
+        _, rep = parse_form.load(ro, fo, _winter_shifts())
+    assert rep.must_stop
+    assert any("weekday rank(s) [4] used more than once" in f.message for f in rep.findings)
+    with tempfile.TemporaryDirectory() as td:
+        ro, fo = _winter_fixture(td, [_winter_row(weekend=(1.0, 1.0, 3.0, 4.0, 5.0, 6.0))])
+        _, rep = parse_form.load(ro, fo, _winter_shifts())
+    assert rep.must_stop
+    assert any("weekend rank(s) [1] used more than once" in f.message for f in rep.findings)
+
+
+def test_winter_blank_grid_cell_is_flagged_not_unavailable():
+    import tempfile
+    from ra_scheduler import parse_form
+    with tempfile.TemporaryDirectory() as td:
+        ro, fo = _winter_fixture(td, [_winter_row(weekend=(1.0, 2.0, 3.0, 4.0, 5.0, None))])
+        data, rep = parse_form.load(ro, fo, _winter_shifts())
+    assert not rep.must_stop
+    assert any("Sunday Evening: not answered" in f.message for f in rep.findings)
+    assert len(data.available["a@ucsd.edu"]) == 7
+
+
+def test_fall_checkbox_shape_still_parses():
+    """Fall data must stay replayable for tuning."""
+    import tempfile
+    from ra_scheduler import parse_form
+    with tempfile.TemporaryDirectory() as td:
+        ro, fo = _fixture(td, [("a@ucsd.edu", "Pat Rivera", "New")], [_row("a@ucsd.edu", "Pat Rivera")])
+        data, rep = parse_form.load(ro, fo, _shifts())
+    assert not rep.must_stop
+    assert "weekend ranks" not in rep.matched
+    assert data.prefs("a@ucsd.edu").weekend_rank == {}
 
 
 if __name__ == "__main__":

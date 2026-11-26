@@ -9,9 +9,11 @@ Two inputs:
 
 Decisions this encodes (all Shivam's, 2026-08-24 to 08-26):
   - join on ucsd email first. If that fails, exact full name; if that fails,
-    a first name that matches exactly one roster entry. Each fallback FLAGs,
-    and if every one fails the run STOPs. (People turned out to have more than
-    one ucsd.edu address, so email alone was not the stable key it looked like.)
+    a first name that matches exactly one roster entry; if every one fails the
+    run STOPs. (People turned out to have more than one ucsd.edu address, so
+    email alone was not the stable key it looked like.) A name match used to
+    FLAG so the roster got corrected; Shivam dropped that on 2026-11-25 as
+    noise. The match report still counts how many joined by name.
   - a blackout date is M/D or MM/DD read off the FRONT of each entry, entries
     split on newlines AND commas; anything without a leading date is reported,
     never guessed
@@ -22,6 +24,16 @@ Decisions this encodes (all Shivam's, 2026-08-24 to 08-26):
   - more than 10 blackout dates is flagged
   - every non-trivial "additional concerns" box is printed for a human to read
   - no NLP anywhere
+
+Winter 2027 form (Shivam, 2026-11-22), on top of the above:
+  - the weekday-dates box is gone; only the all-dates box remains (optional column)
+  - weekend preference is a 1-6 ranking grid over the six weekend slots, with an
+    "Unavailable (must explain why)" option per row. Any non-numeric cell in the
+    grid is read as unavailable: those shifts leave the person's availability,
+    the person is FLAGged so the leads can ask for proof, and all six is a STOP.
+  - the same rank on two rows, in either grid, STOPs the run: resubmit. (Fall
+    only flagged it; the leads said duplicates gamed the system.)
+  - the Fall checkbox shape still parses, so Fall data can be replayed.
 
 Column discovery matches a distinctive keyword per field rather than the full
 question text (which is a paragraph and will drift), and reports what it
@@ -39,6 +51,8 @@ from openpyxl import load_workbook
 from .models import (
     FRONT_DESK,
     GAME_ROOM,
+    WEEKEND_SLOTS,
+    WEEKEND_TIME_LABEL,
     TIER_LRA,
     TIER_NEW,
     TIER_RETURNER,
@@ -59,14 +73,16 @@ COLUMN_KEYS = {
     "timestamp":     ("timestamp",),
     "email":         ("email",),
     "name":          ("ra name",),
-    "weekday_dates": ("weekday dates you cannot",),
+    "weekday_dates": ("weekday dates you cannot",),        # Fall only
     "all_dates":     ("all of the dates you cannot",),
-    "weekend_pref":  ("weekend shift time preferences",),
+    "weekend_pref":  ("weekend shift time preferences",),  # Fall checkbox; Winter has a grid instead
     "location":      ("shift location",),
     "concern_wkday": ("concerns related to weekday",),
     "concern_wkend": ("concerns related to weekend",),
 }
+OPTIONAL_KEYS = {"weekday_dates", "weekend_pref"}
 WEEKDAY_SUFFIX = re.compile(r"\[(Monday|Tuesday|Wednesday|Thursday|Friday)\]\s*$")
+WEEKEND_SUFFIX = re.compile(r"\[((?:Saturday|Sunday) (?:Morning|Afternoon|Evening))\]\s*$")
 
 STOP, FLAG, READ = "STOP", "FLAG", "READ"
 _SEVERITY_ORDER = {STOP: 0, FLAG: 1, READ: 2}
@@ -76,23 +92,25 @@ _SEVERITY_ORDER = {STOP: 0, FLAG: 1, READ: 2}
 # wording and this table live in the same file and change together.
 KINDS = [
     (STOP, "has not submitted",                 "on the roster but has not submitted"),
+    (STOP, "resubmit",                          "same rank on more than one row; resubmit"),
     (STOP, "ALL FIVE weekdays",                 "marked every weekday as a class conflict"),
+    (STOP, "ALL SIX weekend",                   "marked every weekend slot unavailable"),
     (STOP, "resolved to this one roster",       "two submissions matched one roster entry"),
     (STOP, "matches",                           "first name matches more than one roster entry"),
     (STOP, "not on the roster by email",        "not on the roster by email, full name, or first name"),
     (STOP, "duplicate email",                   "roster: duplicate email"),
     (STOP, "malformed email",                   "roster: malformed email"),
     (STOP, "unrecognised tier",                 "roster: unrecognised tier"),
-    (FLAG, "the roster has",                    "roster email is stale; matched by name instead"),
+    (FLAG, "proof required",                    "weekend slot(s) marked unavailable; ask for proof"),
     (FLAG, "could not read a date",             "a date the parser could not read"),
     (FLAG, "blackout dates (over",              "more than 10 blackout dates"),
     (FLAG, "weekdays are class conflicts",      "3 or 4 of 5 weekdays are class conflicts"),
     (FLAG, "picked [Open] AND",                 "weekend: [Open] plus a specific day"),
     (FLAG, "submitted more than once",          "submitted more than once; later one kept"),
     (FLAG, "neither a rank nor a conflict",     "weekday cell is neither a rank nor a conflict"),
-    (FLAG, "outside 1-5",                       "rank outside 1 to 5, ignored"),
+    (FLAG, "outside 1-",                        "rank outside the grid's range, ignored"),
+    (FLAG, "not answered",                      "a grid row left blank"),
     (FLAG, "no email",                          "a row with no email was skipped"),
-    (FLAG, "used more than once",               "same rank on more than one day, both taken at face value"),
     (READ, "weekday concerns",                  "weekday concerns box"),
     (READ, "weekend concerns",                  "weekend concerns box"),
 ]
@@ -211,6 +229,20 @@ def _is_conflict(v) -> bool:
     return _norm(v).lower().startswith(CONFLICT)
 
 
+def _slot_of(s: ShiftInstance) -> str | None:
+    """'Saturday Morning' for a weekend shift, None for a weekday evening."""
+    label = WEEKEND_TIME_LABEL.get(s.shift)
+    return f"{s.dow} {label}" if label else None
+
+
+def _stop_on_duplicate_ranks(report: ParseReport, email: str, grid: str, ranks: dict[str, int]) -> None:
+    """Shivam 2026-11-22: a rank used twice in a grid STOPs the run; they resubmit.
+    (Google Forms can prevent this: 'Limit to one response per column'.)"""
+    dupes = sorted({k for k in ranks.values() if list(ranks.values()).count(k) > 1})
+    if dupes:
+        report.add(STOP, email, f"{grid} rank(s) {dupes} used more than once; ask them to resubmit")
+
+
 # --------------------------------------------------------------------------- #
 # roster
 # --------------------------------------------------------------------------- #
@@ -272,6 +304,10 @@ def _find_columns(hdr: list, report: ParseReport) -> dict:
     for key, needles in COLUMN_KEYS.items():
         hits = [i for i, h in enumerate(low) if any(n in h for n in needles)]
         if not hits:
+            if key in OPTIONAL_KEYS:
+                col[key] = None
+                report.matched[key] = "(absent, optional)"
+                continue
             raise ParseError(f"form: no column for '{key}' (looked for {needles})")
         col[key] = hits[0]
         report.matched[key] = _norm(hdr[hits[0]])[:60]
@@ -285,6 +321,21 @@ def _find_columns(hdr: list, report: ParseReport) -> dict:
     if missing:
         raise ParseError(f"form: no ranking column for {missing}; want headers ending [Monday]..[Friday]")
     report.matched["weekday ranks"] = "5 columns ending [Monday] .. [Friday]"
+
+    col["weekend_rank"] = {}
+    for i, h in enumerate(hdr):
+        m = WEEKEND_SUFFIX.search(_norm(h))
+        if m:
+            col["weekend_rank"][m.group(1)] = i
+    if col["weekend_rank"]:
+        missing = [k for k in WEEKEND_SLOTS if k not in col["weekend_rank"]]
+        if missing:
+            raise ParseError(f"form: weekend grid is missing {missing}; want six headers ending "
+                             f"[Saturday Morning] .. [Sunday Evening]")
+        report.matched["weekend ranks"] = "6 columns ending [Saturday Morning] .. [Sunday Evening]"
+    elif col["weekend_pref"] is None:
+        raise ParseError("form: no weekend preference column: neither the six-column ranking grid "
+                         "nor a 'weekend shift time preferences' checkbox")
     return col
 
 
@@ -335,22 +386,21 @@ def load_form(
     for ra in roster:
         by_first.setdefault(_norm(ra.name).lower().split()[0], []).append(ra)
 
+    by_name_count = [0]
+
     def resolve(email: str, name: str) -> RA | None:
-        """Email, then full name, then unique first name. Flag every fallback."""
+        """Email, then full name, then unique first name. Only a total miss is a finding."""
         if email in by_email:
             return by_email[email]
         who = f"{_norm(name) or '(no name)'} <{email}>"     # not on the roster: show both
         full = _norm(name).lower()
         if full in by_name:
-            ra = by_name[full]
-            report.add(FLAG, who, f"email not on the roster; matched by full name. "
-                                  f"the roster has {ra.ra_id} for them, update it")
-            return ra
+            by_name_count[0] += 1
+            return by_name[full]
         fn = full.split()[0] if full else ""
         hits = by_first.get(fn, [])
         if len(hits) == 1:
-            report.add(FLAG, who, f"email not on the roster; matched by first name only to "
-                                  f"{hits[0].name}. the roster has {hits[0].ra_id} for them, update it")
+            by_name_count[0] += 1
             return hits[0]
         if len(hits) > 1:
             report.add(STOP, who, f"first name {fn!r} matches {len(hits)} roster entries; "
@@ -408,12 +458,35 @@ def load_form(
             report.add(STOP, email, "marked ALL FIVE weekdays as class conflicts; weekend-only. Check with them.")
         elif len(conflicts) >= 3:
             report.add(FLAG, email, f"{len(conflicts)} of 5 weekdays are class conflicts")
-        dupes = {k for k in ranks.values() if list(ranks.values()).count(k) > 1}
-        if dupes:
-            report.add(FLAG, email, f"rank(s) {sorted(dupes)} used more than once")
+        _stop_on_duplicate_ranks(report, email, "weekday", ranks)
 
-        # blackout dates: union of both boxes
-        wk_dates, bad1 = parse_dates(r[col["weekday_dates"]], year)
+        # weekend ranking grid (Winter form): rank or unavailable per slot
+        wk_ranks: dict[str, int] = {}
+        wk_unavail: set[str] = set()
+        if col["weekend_rank"]:
+            for slot in WEEKEND_SLOTS:
+                v = r[col["weekend_rank"][slot]]
+                k = _rank(v)
+                if k is not None:
+                    if 1 <= k <= 6:
+                        wk_ranks[slot] = k
+                    else:
+                        report.add(FLAG, email, f"{slot}: rank {k} is outside 1-6, ignored")
+                elif _norm(v):
+                    wk_unavail.add(slot)        # any non-numeric answer is the unavailable option
+                else:
+                    report.add(FLAG, email, f"{slot}: not answered (blank), treated as no preference")
+            if len(wk_unavail) == 6:
+                report.add(STOP, email, "marked ALL SIX weekend slots unavailable. Check with them.")
+            elif wk_unavail:
+                report.add(FLAG, email, f"weekend: {len(wk_unavail)} slot(s) marked unavailable "
+                                        f"({', '.join(s for s in WEEKEND_SLOTS if s in wk_unavail)}); "
+                                        f"proof required")
+            _stop_on_duplicate_ranks(report, email, "weekend", wk_ranks)
+
+        # blackout dates: union of both boxes (Winter has only the second)
+        wk_dates, bad1 = (parse_dates(r[col["weekday_dates"]], year)
+                          if col["weekday_dates"] is not None else (set(), []))
         all_dates, bad2 = parse_dates(r[col["all_dates"]], year)
         for frag in bad1 + bad2:
             report.add(FLAG, email, f"could not read a date from {frag[:40]!r}")
@@ -422,11 +495,13 @@ def load_form(
         if len(black) > MAX_BLACKOUTS_BEFORE_FLAG:
             report.add(FLAG, email, f"{len(black)} blackout dates (over {MAX_BLACKOUTS_BEFORE_FLAG})")
 
-        # weekend + location preferences
-        wk_days, wk_times = _parse_weekend(r[col["weekend_pref"]])
-        raw = str(r[col["weekend_pref"]] or "")
-        if "[Open]" in raw and ("[Saturdays]" in raw or "[Sundays]" in raw):
-            report.add(FLAG, email, "weekend: picked [Open] AND a specific day; treating as open")
+        # weekend checkbox (Fall form) + location preferences
+        wk_days, wk_times = set(), set()
+        if col["weekend_pref"] is not None and not col["weekend_rank"]:
+            wk_days, wk_times = _parse_weekend(r[col["weekend_pref"]])
+            raw = str(r[col["weekend_pref"]] or "")
+            if "[Open]" in raw and ("[Saturdays]" in raw or "[Sundays]" in raw):
+                report.add(FLAG, email, "weekend: picked [Open] AND a specific day; treating as open")
         location = _parse_location(r[col["location"]])
 
         # concerns: a human reads these, always
@@ -438,17 +513,21 @@ def load_form(
         # availability by subtraction
         ok = {s.key for s in shifts
               if s.date not in black
-              and not (s.shift == "Evening (Weekday)" and s.dow in conflicts)}
+              and not (s.shift == "Evening (Weekday)" and s.dow in conflicts)
+              and _slot_of(s) not in wk_unavail}
         available[email] = ok
         blackouts[email] = black
-        prefs[email] = Preferences(weekday_rank=ranks, weekend_days=wk_days,
-                                   weekend_times=wk_times, location=location)
+        prefs[email] = Preferences(weekday_rank=ranks, weekend_rank=wk_ranks,
+                                   weekend_days=wk_days, weekend_times=wk_times,
+                                   location=location)
 
     # --- everyone on the roster must have answered ---
     missing = [ra for ra in roster if ra.ra_id not in available]
     for ra in missing:
         report.add(STOP, ra.ra_id, f"on the roster ({ra.tier}) but has not submitted the form")
-    report.matched["responses used"] = f"{len(available)} of {len(roster)} roster members"
+    report.matched["responses used"] = (f"{len(available)} of {len(roster)} roster members"
+                                        + (f" ({by_name_count[0]} joined by name, not email)"
+                                           if by_name_count[0] else ""))
 
     return AvailabilityData(roster=roster, available=available,
                             blackout_dates=blackouts, preferences=prefs)

@@ -28,6 +28,8 @@ from ra_scheduler.export import synthetic_path, write_schedule
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--grid", required=True)
+    ap.add_argument("--grid-sheet", default="Fall Duty Schedule",
+                    help="tab inside the grid workbook (default: 'Fall Duty Schedule'; Winter: 'Winter Template')")
     ap.add_argument("--out", required=True)
     ap.add_argument("--roster", help="roster xlsx: Email | Name | Tier")
     ap.add_argument("--availability", help="Google Form response export xlsx")
@@ -39,7 +41,7 @@ def main() -> int:
                     help="print every preflight finding")
     args = ap.parse_args()
 
-    shifts, holidays = load_grid(args.grid)
+    shifts, holidays = load_grid(args.grid, sheet=args.grid_sheet)
     print(f"[grid]      {len(shifts)} shifts, {sum(s.seats for s in shifts)} seats, "
           f"{len(holidays)} holiday rows, {shifts[0].date} -> {shifts[-1].date}")
 
@@ -147,14 +149,17 @@ def main() -> int:
                 else:
                     missed += 1
             label = WEEKEND_TIME_LABEL.get(s.shift)
-            if label and (prefs.weekend_days or prefs.weekend_times):
+            if label and prefs.weekend_rank:                       # Winter grid: 1st or 2nd choice slot
+                weekend_n += 1
+                weekend_ok += prefs.weekend_rank.get(f"{s.dow} {label}", 9) <= 2
+            elif label and (prefs.weekend_days or prefs.weekend_times):   # Fall checkbox: day and time match
                 weekend_n += 1
                 weekend_ok += prefs.weekend_cost(s.dow, label) == 0
     if got + missed:
         print(f"[prefs]     weekday shifts on a 1st or 2nd choice day: "
               f"{got}/{got + missed} ({got / (got + missed):.0%})")
     if weekend_n:
-        print(f"[prefs]     weekend shifts matching day AND time asked for: "
+        print(f"[prefs]     weekend shifts on a 1st/2nd choice slot (grid) or matching day AND time (checkbox): "
               f"{weekend_ok}/{weekend_n} ({weekend_ok / weekend_n:.0%})")
     desk_ok = desk_n = 0
     for sid, table in roles.items():
